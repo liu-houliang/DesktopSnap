@@ -17,6 +17,8 @@ namespace DesktopSnap
 
     public static class DesktopIconManager
     {
+        public static string LastLog { get; set; } = "";
+
         [DllImport("user32.dll", SetLastError = true)]
         static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 
@@ -91,46 +93,101 @@ namespace DesktopSnap
 
         private static IntPtr GetDesktopListView()
         {
+            IntPtr listView = IntPtr.Zero;
+            
             IntPtr progman = FindWindow("Progman", null);
             IntPtr shelldll = FindWindowEx(progman, IntPtr.Zero, "SHELLDLL_DefView", null);
-            IntPtr listview = FindWindowEx(shelldll, IntPtr.Zero, "SysListView32", null);
+            IntPtr lv = FindWindowEx(shelldll, IntPtr.Zero, "SysListView32", null);
 
-            if (listview != IntPtr.Zero)
-                return listview;
+            int progmanCount = 0;
+            if (lv != IntPtr.Zero)
+            {
+                progmanCount = (int)SendMessage(lv, LVM_GETITEMCOUNT, IntPtr.Zero, IntPtr.Zero);
+                LastLog += $"Found Progman SysListView32: {lv} (Items: {progmanCount})\n";
+                if (progmanCount > 0)
+                {
+                    return lv;
+                }
+            }
 
-            IntPtr workerw = IntPtr.Zero;
+            // Fallback to WorkerW
             EnumWindows((hwnd, lParam) =>
             {
                 IntPtr p = FindWindowEx(hwnd, IntPtr.Zero, "SHELLDLL_DefView", null);
                 if (p != IntPtr.Zero)
                 {
-                    listview = FindWindowEx(p, IntPtr.Zero, "SysListView32", null);
-                    workerw = hwnd;
-                    return false; // stop enums
+                    IntPtr tempLv = FindWindowEx(p, IntPtr.Zero, "SysListView32", null);
+                    if (tempLv != IntPtr.Zero)
+                    {
+                        int count = (int)SendMessage(tempLv, LVM_GETITEMCOUNT, IntPtr.Zero, IntPtr.Zero);
+                        LastLog += $"Found WorkerW ({hwnd}) SysListView32: {tempLv} (Items: {count})\n";
+                        if (count > 0)
+                        {
+                            listView = tempLv;
+                            return false; // Found the active one, stop iterating
+                        }
+                        if (listView == IntPtr.Zero)
+                        {
+                            listView = tempLv; // Keep it as a backup
+                        }
+                    }
                 }
                 return true;
             }, IntPtr.Zero);
 
-            return listview;
+            if (listView != IntPtr.Zero)
+            {
+                LastLog += $"Selected WorkerW SysListView32: {listView}\n";
+                return listView;
+            }
+
+            LastLog += $"Selected Progman SysListView32: {lv}\n";
+            return lv; // Return whatever Progman had, even if 0
         }
 
         public static List<IconInfo> GetIcons()
         {
+            LastLog = "";
             var icons = new List<IconInfo>();
             IntPtr listView = GetDesktopListView();
-            if (listView == IntPtr.Zero) return icons;
+            
+            if (listView == IntPtr.Zero)
+            {
+                LastLog += "Error: Could not find any SysListView32 handle for desktop.\n";
+                return icons;
+            }
 
             GetWindowThreadProcessId(listView, out uint pid);
+            LastLog += $"Target Process ID: {pid}\n";
+            
             IntPtr process = OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, false, pid);
-            if (process == IntPtr.Zero) return icons;
+            if (process == IntPtr.Zero)
+            {
+                int err = Marshal.GetLastWin32Error();
+                LastLog += $"Error: OpenProcess failed with code {err}\n";
+                return icons;
+            }
 
             int count = (int)SendMessage(listView, LVM_GETITEMCOUNT, IntPtr.Zero, IntPtr.Zero);
+            LastLog += $"Action Get: Count verified: {count}\n";
+            if (count == 0)
+            {
+                CloseHandle(process);
+                return icons;
+            }
 
             uint pointSize = (uint)Marshal.SizeOf(typeof(POINT));
             uint itemSize = (uint)Marshal.SizeOf(typeof(LVITEMW));
             uint stringBufSize = 512;
 
             IntPtr pPointStr = VirtualAllocEx(process, IntPtr.Zero, pointSize + itemSize + stringBufSize, MEM_COMMIT, PAGE_READWRITE);
+            if (pPointStr == IntPtr.Zero)
+            {
+                int err = Marshal.GetLastWin32Error();
+                LastLog += $"Error: VirtualAllocEx failed with code {err}\n";
+                CloseHandle(process);
+                return icons;
+            }
 
             IntPtr ptAddress = pPointStr;
             IntPtr itemAddress = pPointStr + (int)pointSize;
@@ -146,14 +203,27 @@ namespace DesktopSnap
                 POINT pt = Marshal.PtrToStructure<POINT>(localPt);
                 Marshal.FreeHGlobal(localPt);
 
-                // Text
-                LVITEMW item = new LVITEMW();
-                item.cchTextMax = 255;
-                item.pszText = strAddress;
+                // Text (Architecture safe struct injection)
+                byte[] itemBytes;
+                int itemStructSize;
 
-                int itemStructSize = Marshal.SizeOf(typeof(LVITEMW));
+                if (Environment.Is64BitOperatingSystem)
+                {
+                    itemStructSize = 88;
+                    itemBytes = new byte[88];
+                    BitConverter.GetBytes(strAddress.ToInt64()).CopyTo(itemBytes, 24); // pszText
+                    BitConverter.GetBytes(255).CopyTo(itemBytes, 32); // cchTextMax
+                }
+                else
+                {
+                    itemStructSize = 60;
+                    itemBytes = new byte[60];
+                    BitConverter.GetBytes(strAddress.ToInt32()).CopyTo(itemBytes, 20); // pszText
+                    BitConverter.GetBytes(255).CopyTo(itemBytes, 24); // cchTextMax
+                }
+
                 IntPtr localItem = Marshal.AllocHGlobal(itemStructSize);
-                Marshal.StructureToPtr(item, localItem, false);
+                Marshal.Copy(itemBytes, 0, localItem, itemStructSize);
 
                 WriteProcessMemory(process, itemAddress, localItem, itemStructSize, out _);
                 SendMessage(listView, LVM_GETITEMTEXTW, (IntPtr)i, itemAddress);
@@ -161,6 +231,7 @@ namespace DesktopSnap
                 IntPtr localStr = Marshal.AllocHGlobal((int)stringBufSize);
                 ReadProcessMemory(process, strAddress, localStr, (int)stringBufSize, out _);
                 string name = Marshal.PtrToStringUni(localStr);
+                
                 Marshal.FreeHGlobal(localStr);
                 Marshal.FreeHGlobal(localItem);
 
@@ -173,39 +244,63 @@ namespace DesktopSnap
             VirtualFreeEx(process, pPointStr, 0, MEM_RELEASE);
             CloseHandle(process);
 
+            LastLog += $"GetIcons completion: Valid names retrieved: {icons.Count}\n";
             return icons;
         }
 
         public static void SetIcons(List<IconInfo> icons)
         {
+            LastLog = "";
             IntPtr listView = GetDesktopListView();
-            if (listView == IntPtr.Zero) return;
+            if (listView == IntPtr.Zero)
+            {
+                LastLog += "Error (Set): SysListView32 handle not found.\n";
+                return;
+            }
 
-            // First, get current icons to know their indices
             var currentIcons = new Dictionary<string, int>();
 
             GetWindowThreadProcessId(listView, out uint pid);
             IntPtr process = OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, false, pid);
-            if (process == IntPtr.Zero) return;
+            if (process == IntPtr.Zero)
+            {
+                LastLog += $"Error (Set): OpenProcess failed with code {Marshal.GetLastWin32Error()}\n";
+                return;
+            }
 
             int count = (int)SendMessage(listView, LVM_GETITEMCOUNT, IntPtr.Zero, IntPtr.Zero);
+            LastLog += $"Action Set: Target count verified: {count}\n";
 
             uint itemSize = (uint)Marshal.SizeOf(typeof(LVITEMW));
             uint stringBufSize = 512;
 
             IntPtr pPointStr = VirtualAllocEx(process, IntPtr.Zero, itemSize + stringBufSize, MEM_COMMIT, PAGE_READWRITE);
+
             IntPtr itemAddress = pPointStr;
             IntPtr strAddress = pPointStr + (int)itemSize;
 
             for (int i = 0; i < count; i++)
             {
-                LVITEMW item = new LVITEMW();
-                item.cchTextMax = 255;
-                item.pszText = strAddress;
+                byte[] itemBytes;
+                int itemStructSize;
 
-                int itemStructSize = Marshal.SizeOf(typeof(LVITEMW));
+                if (Environment.Is64BitOperatingSystem)
+                {
+                    itemStructSize = 88;
+                    itemBytes = new byte[88];
+                    BitConverter.GetBytes(strAddress.ToInt64()).CopyTo(itemBytes, 24); // pszText
+                    BitConverter.GetBytes(255).CopyTo(itemBytes, 32); // cchTextMax
+                }
+                else
+                {
+                    itemStructSize = 60;
+                    itemBytes = new byte[60];
+                    BitConverter.GetBytes(strAddress.ToInt32()).CopyTo(itemBytes, 20); // pszText
+                    BitConverter.GetBytes(255).CopyTo(itemBytes, 24); // cchTextMax
+                }
+
                 IntPtr localItem = Marshal.AllocHGlobal(itemStructSize);
-                Marshal.StructureToPtr(item, localItem, false);
+                Marshal.Copy(itemBytes, 0, localItem, itemStructSize);
 
                 WriteProcessMemory(process, itemAddress, localItem, itemStructSize, out _);
                 SendMessage(listView, LVM_GETITEMTEXTW, (IntPtr)i, itemAddress);
@@ -213,6 +308,7 @@ namespace DesktopSnap
                 IntPtr localStr = Marshal.AllocHGlobal((int)stringBufSize);
                 ReadProcessMemory(process, strAddress, localStr, (int)stringBufSize, out _);
                 string name = Marshal.PtrToStringUni(localStr);
+                
                 Marshal.FreeHGlobal(localStr);
                 Marshal.FreeHGlobal(localItem);
 
@@ -225,15 +321,19 @@ namespace DesktopSnap
             VirtualFreeEx(process, pPointStr, 0, MEM_RELEASE);
             CloseHandle(process);
 
-            // Now apply positions
+            int matched = 0;
             foreach (var icon in icons)
             {
                 if (currentIcons.TryGetValue(icon.Name, out int index))
                 {
-                    IntPtr lParam = (IntPtr)((icon.Y << 16) | (icon.X & 0xffff));
+                    int x = icon.X & 0xFFFF;
+                    int y = (icon.Y & 0xFFFF) << 16;
+                    IntPtr lParam = unchecked((IntPtr)(x | y));
                     SendMessage(listView, LVM_SETITEMPOSITION, (IntPtr)index, lParam);
+                    matched++;
                 }
             }
+            LastLog += $"SetIcons completion: Relocated {matched} icons.\n";
         }
     }
 }

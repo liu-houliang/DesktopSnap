@@ -8,14 +8,69 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <StackPanel Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20">
-        <TextBlock Text="桌面布局快照器 v1.0" Style="{StaticResource TitleTextBlockStyle}" HorizontalAlignment="Center"/>
+    <Grid Padding="20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="280" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
-        <StackPanel Orientation="Horizontal" Spacing="15">
-            <Button x:Name="SaveBtn" Content="📷 保存当前布局" Click="SaveBtn_Click" Width="150" Style="{StaticResource AccentButtonStyle}"/>
-            <Button x:Name="RestoreBtn" Content="🔄 恢复之前布局" Click="RestoreBtn_Click" Width="150"/>
-        </StackPanel>
+        <Grid Grid.Column="0" BorderBrush="#333333" BorderThickness="0,0,1,0" Padding="0,0,20,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-        <InfoBar x:Name="StatusInfo" Title="状态" Message="准备就绪" IsOpen="True" Severity="Informational" Width="320" />
-    </StackPanel>
+            <TextBlock Text="桌面布局快照器 v2.0" Style="{StaticResource TitleTextBlockStyle}" Margin="0,0,0,20"/>
+
+            <Button Grid.Row="1" Content="➕ 新建桌面快照" HorizontalAlignment="Stretch" Click="NewLayoutBtn_Click" Margin="0,0,0,10" Style="{StaticResource AccentButtonStyle}"/>
+
+            <ListView Grid.Row="2" x:Name="LayoutsListView" SelectionChanged="LayoutsListView_SelectionChanged" SelectionMode="Single">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="0,8">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="16" />
+                            <TextBlock Text="{Binding SavedTime}" FontSize="12" Foreground="DarkGray" Margin="0,4,0,0" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Grid>
+
+        <Grid Grid.Column="1" Padding="20,0,0,0">
+            <Grid x:Name="DetailPanel" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="20" Margin="0,0,0,20">
+                    <TextBlock x:Name="DetailNameText" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center" />
+                    <TextBlock x:Name="DetailCountText" VerticalAlignment="Center" Foreground="Gray" FontSize="14" />
+                </StackPanel>
+
+                <Border Grid.Row="1" Background="#111111" CornerRadius="8" BorderBrush="#333333" BorderThickness="1" Margin="0,0,0,20">
+                    <ScrollViewer x:Name="PreviewScrollViewer" 
+                                  ZoomMode="Enabled" 
+                                  HorizontalScrollBarVisibility="Auto" 
+                                  VerticalScrollBarVisibility="Auto" 
+                                  HorizontalScrollMode="Enabled" 
+                                  VerticalScrollMode="Enabled">
+                        <Canvas x:Name="PreviewCanvas" Background="Transparent" HorizontalAlignment="Left" VerticalAlignment="Top" />
+                    </ScrollViewer>
+                </Border>
+
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" Margin="0,0,0,20">
+                    <Button Content="💾 覆盖更新为此桌面" Click="OverwriteBtn_Click" />
+                    <Button Content="🗑️ 删除此快照" Click="DeleteBtn_Click" />
+                    <Button Content="🔄 恢复此布局" Click="RestoreBtn_Click" Style="{StaticResource AccentButtonStyle}" />
+                </StackPanel>
+
+                <InfoBar Grid.Row="3" x:Name="StatusInfo" IsOpen="False" />
+            </Grid>
+            <TextBlock x:Name="NoSelectionText" Text="👈 请选择左侧的桌面快照或新建一个" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="Gray" FontSize="16" />
+        </Grid>
+    </Grid>
 </Window>

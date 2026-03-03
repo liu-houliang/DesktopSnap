@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="DesktopSnap.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:DesktopSnap"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <StackPanel Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20">
+        <TextBlock Text="桌面布局快照器 v1.0" Style="{StaticResource TitleTextBlockStyle}" HorizontalAlignment="Center"/>
+
+        <StackPanel Orientation="Horizontal" Spacing="15">
+            <Button x:Name="SaveBtn" Content="📷 保存当前布局" Click="SaveBtn_Click" Width="150" Style="{StaticResource AccentButtonStyle}"/>
+            <Button x:Name="RestoreBtn" Content="🔄 恢复之前布局" Click="RestoreBtn_Click" Width="150"/>
+        </StackPanel>
+
+        <InfoBar x:Name="StatusInfo" Title="状态" Message="准备就绪" IsOpen="True" Severity="Informational" Width="320" />
+    </StackPanel>
+</Window>

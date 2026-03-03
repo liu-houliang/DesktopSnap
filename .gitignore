@@ -1,0 +1,30 @@
+    ## [Visual Studio 官方推荐配置]
+*.swp
+*.*~
+抛弃型文件
+.vs/
+/bin/
+/obj/
+/Generated Files/
+/AppPackages/
+/BundleArtifacts/
+
+## [NuGet 相关]
+/packages/
+*.nuget.props
+*.nuget.targets
+
+## [用户个人设置]
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+
+## [构建日志]
+*.log
+*.tlog
+*.lastbuildstate
+
+## [操作系统临时文件]
+Thumbs.db
+Desktop.ini

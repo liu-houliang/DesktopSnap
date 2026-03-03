@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "DesktopSnap (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "DesktopSnap (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

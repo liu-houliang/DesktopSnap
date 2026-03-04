@@ -82,8 +82,11 @@ namespace DesktopSnap
                 { "Successfully created snapshot:", "成功创建新快照：" },
                 { "Overwrote snapshot:", "已更新快照布局：" },
                 { "Snapshot deleted.", "已成功删除快照。" },
-                { "Successfully restored", "已成功恢复布局，包含" },
-                { "No icons in this snapshot.", "此快照中没有记录任何图标。" }
+                { "No icons in this snapshot.", "此快照中没有记录任何图标。" },
+                { "Repositioned:", "已复位:" },
+                { "Shortcuts recreated:", "已重建快捷方式:" },
+                { "Cannot restore:", "无法恢复:" },
+                { "Extra icons on desktop:", "桌面上的额外图标:" }
             } },
             { "en", new Dictionary<string, string> {
                 { "AppTitle", "Desktop Snap v2.0" },
@@ -106,8 +109,11 @@ namespace DesktopSnap
                 { "Successfully created snapshot:", "Successfully created snapshot:" },
                 { "Overwrote snapshot:", "Successfully updated snapshot:" },
                 { "Snapshot deleted.", "Snapshot deleted." },
-                { "Successfully restored", "Successfully restored layout, containing" },
-                { "No icons in this snapshot.", "There are no icons saved in this snapshot." }
+                { "No icons in this snapshot.", "There are no icons saved in this snapshot." },
+                { "Repositioned:", "Repositioned:" },
+                { "Shortcuts recreated:", "Shortcuts recreated:" },
+                { "Cannot restore:", "Cannot restore:" },
+                { "Extra icons on desktop:", "Extra icons on desktop:" }
             } }
         };
 

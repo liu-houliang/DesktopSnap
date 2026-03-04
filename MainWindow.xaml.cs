@@ -1,9 +1,14 @@
 ﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Shapes;
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Windows.UI;
 
 namespace DesktopSnap
@@ -11,6 +16,10 @@ namespace DesktopSnap
     public sealed partial class MainWindow : Window
     {
         public I18n Lang => I18n.Instance;
+
+        // Icon thumbnail cache: file path -> BitmapImage
+        private static readonly ConcurrentDictionary<string, BitmapImage> _iconCache = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly SemaphoreSlim _iconLoadSemaphore = new(10, 10); // Max 10 concurrent loads
 
         public MainWindow()
         {
@@ -106,6 +115,7 @@ namespace DesktopSnap
 
         private void DrawPreview(DesktopLayout layout)
         {
+            _iconLoadVersion++; // Cancel any pending icon loads from previous preview
             PreviewCanvas.Children.Clear();
             DesktopJumpsPanel.Children.Clear();
             
@@ -185,38 +195,102 @@ namespace DesktopSnap
 
             foreach (var icon in layout.Icons)
             {
-                string glyph = "\uE7C3"; // Default Page
-                string lowered = icon.Name.ToLowerInvariant();
-                if (!lowered.Contains(".")) glyph = "\uE8B7"; // Folder shape
-                else if (lowered.EndsWith(".jpg") || lowered.EndsWith(".png") || lowered.EndsWith(".gif")) glyph = "\uEB9F"; // Picture
-                else if (lowered.EndsWith(".mp4") || lowered.EndsWith(".mkv")) glyph = "\uE8B2"; // Video
-                else if (lowered.EndsWith(".mp3") || lowered.EndsWith(".wav")) glyph = "\uE8D6"; // Audio
-                else if (lowered.EndsWith(".txt") || lowered.EndsWith(".doc") || lowered.EndsWith(".docx") || lowered.EndsWith(".pdf")) glyph = "\uE8A5"; // Custom Doc
-                else if (lowered.EndsWith(".zip") || lowered.EndsWith(".rar") || lowered.EndsWith(".7z")) glyph = "\uE7B8"; // Archive
+                bool isShortcut = !string.IsNullOrEmpty(icon.FilePath) &&
+                                  icon.FilePath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase);
+                bool isFolderLike = IsFolderIcon(icon);
 
+                var iconGrid = new Grid { Width = 32, Height = 32 };
+
+                // Simple fallback: yellow folder or blue file
                 var fontIcon = new FontIcon
                 {
-                    Glyph = glyph,
-                    FontSize = 32,
-                    Foreground = new SolidColorBrush(Color.FromArgb(255, 120, 180, 255))
+                    Glyph = isFolderLike ? "\uE8B7" : "\uE7C3",
+                    FontSize = 28,
+                    Foreground = new SolidColorBrush(isFolderLike
+                        ? Color.FromArgb(255, 255, 210, 80)
+                        : Color.FromArgb(255, 120, 180, 255)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
                 };
-                
-                Canvas.SetLeft(fontIcon, icon.X - minX);
-                Canvas.SetTop(fontIcon, icon.Y - minY);
+                iconGrid.Children.Add(fontIcon);
+
+                // Load real icon - skip for plain folders
+                if (!isFolderLike && !string.IsNullOrEmpty(icon.FilePath))
+                {
+                    string loadPath = icon.FilePath;
+                    string fallbackPath = null;
+                    if (isShortcut)
+                    {
+                        if (!string.IsNullOrEmpty(icon.ShortcutTarget) && System.IO.File.Exists(icon.ShortcutTarget))
+                        {
+                            fallbackPath = icon.ShortcutTarget;
+                        }
+                        else if (!string.IsNullOrEmpty(icon.ShortcutIconLocation))
+                        {
+                            string loc = icon.ShortcutIconLocation;
+                            int commaIdx = loc.LastIndexOf(',');
+                            if (commaIdx > 0) loc = loc.Substring(0, commaIdx).Trim();
+                            
+                            if (System.IO.File.Exists(loc))
+                            {
+                                fallbackPath = loc;
+                            }
+                        }
+                    }
+
+                    // Synchronous cache check — instant display, no flash
+                    BitmapImage cachedBmp = null;
+                    if (_iconCache.TryGetValue(loadPath, out cachedBmp) ||
+                        (fallbackPath != null && _iconCache.TryGetValue(fallbackPath, out cachedBmp)))
+                    {
+                        var img = new Image { Width = 32, Height = 32, Stretch = Stretch.Uniform, Source = cachedBmp };
+                        iconGrid.Children.Add(img);
+                        fontIcon.Visibility = Visibility.Collapsed;
+                    }
+                    else
+                    {
+                        // Not cached — show fallback, load async
+                        var img = new Image { Width = 32, Height = 32, Stretch = Stretch.Uniform };
+                        iconGrid.Children.Add(img);
+                        _ = LoadIconAsync(img, fontIcon, loadPath, fallbackPath);
+                    }
+                }
+
+                // Shortcut arrow badge (bottom-left corner)
+                if (isShortcut)
+                {
+                    var badge = new FontIcon
+                    {
+                        Glyph = "\uE71B", // Link arrow
+                        FontSize = 10,
+                        Foreground = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
+                        HorizontalAlignment = HorizontalAlignment.Left,
+                        VerticalAlignment = VerticalAlignment.Bottom,
+                        Margin = new Thickness(-2, 0, 0, -2)
+                    };
+                    iconGrid.Children.Add(badge);
+                }
+
+                ToolTipService.SetToolTip(iconGrid, icon.Name);
+                Canvas.SetLeft(iconGrid, icon.X - minX);
+                Canvas.SetTop(iconGrid, icon.Y - minY);
 
                 var tb = new TextBlock
                 {
-                    Text = TruncateStr(icon.Name, 12),
-                    FontSize = 12,
+                    Text = icon.Name,
+                    FontSize = 11,
                     Foreground = new SolidColorBrush(Color.FromArgb(255, 230, 230, 230)),
-                    Width = 64,
+                    Width = 72,
+                    MaxLines = 2,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
                     TextAlignment = TextAlignment.Center,
                     TextWrapping = TextWrapping.Wrap
                 };
-                Canvas.SetLeft(tb, icon.X - minX - 16);
+                ToolTipService.SetToolTip(tb, icon.Name);
+                Canvas.SetLeft(tb, icon.X - minX - 20);
                 Canvas.SetTop(tb, icon.Y - minY + 36);
 
-                PreviewCanvas.Children.Add(fontIcon);
+                PreviewCanvas.Children.Add(iconGrid);
                 PreviewCanvas.Children.Add(tb);
             }
             
@@ -332,10 +406,107 @@ namespace DesktopSnap
             DetailNameText.Visibility = Visibility.Visible;
         }
 
-        private string TruncateStr(string str, int length)
+        private bool IsFolderIcon(IconInfo icon)
         {
-            if (str == null) return "";
-            return str.Length > length ? str.Substring(0, length) + ".." : str;
+            // Shortcut (.lnk) whose target is a folder
+            if (!string.IsNullOrEmpty(icon.FilePath) &&
+                icon.FilePath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrEmpty(icon.ShortcutTarget) &&
+                System.IO.Directory.Exists(icon.ShortcutTarget))
+                return true;
+
+            // Actual directory sitting on the desktop
+            if (!string.IsNullOrEmpty(icon.FilePath) && System.IO.Directory.Exists(icon.FilePath))
+                return true;
+
+            // Everything else (system icons, programs, files) is NOT a folder
+            return false;
+        }
+
+        private int _iconLoadVersion = 0;
+
+        private async Task LoadIconAsync(Image img, FontIcon fallbackIcon, string filePath, string fallbackPath)
+        {
+            int myVersion = _iconLoadVersion;
+            try
+            {
+                // Cache hit = instant
+                if (_iconCache.TryGetValue(filePath, out var cached))
+                {
+                    img.Source = cached;
+                    fallbackIcon.Visibility = Visibility.Collapsed;
+                    return;
+                }
+
+                if (!System.IO.File.Exists(filePath))
+                {
+                    if (!string.IsNullOrEmpty(fallbackPath) && System.IO.File.Exists(fallbackPath))
+                        filePath = fallbackPath;
+                    else
+                        return;
+                }
+
+                // Throttle concurrent loads
+                await _iconLoadSemaphore.WaitAsync();
+                try
+                {
+                    if (myVersion != _iconLoadVersion) return;
+
+                    // Double-check cache
+                    if (_iconCache.TryGetValue(filePath, out cached))
+                    {
+                        img.Source = cached;
+                        fallbackIcon.Visibility = Visibility.Collapsed;
+                        return;
+                    }
+
+                    // Direct load - NO timeout. Let it finish naturally, then display immediately.
+                    var bmp = await LoadThumbnail(filePath);
+
+                    // Try fallback path if primary failed
+                    if (bmp == null && !string.IsNullOrEmpty(fallbackPath) && fallbackPath != filePath)
+                    {
+                        bmp = await LoadThumbnail(fallbackPath);
+                        if (bmp != null) filePath = fallbackPath;
+                    }
+
+                    if (myVersion != _iconLoadVersion) return;
+
+                    if (bmp != null)
+                    {
+                        _iconCache[filePath] = bmp;
+                        img.Source = bmp;
+                        fallbackIcon.Visibility = Visibility.Collapsed;
+                    }
+                }
+                finally
+                {
+                    _iconLoadSemaphore.Release();
+                }
+            }
+            catch { }
+        }
+
+        private async Task<BitmapImage> LoadThumbnail(string filePath)
+        {
+            try
+            {
+                var storageFile = await Windows.Storage.StorageFile.GetFileFromPathAsync(filePath);
+                var thumbnail = await storageFile.GetThumbnailAsync(
+                    Windows.Storage.FileProperties.ThumbnailMode.SingleItem, 48);
+
+                if (thumbnail != null && thumbnail.Size > 0)
+                {
+                    var bmp = new BitmapImage();
+                    // Use SetSourceAsync to ensure full decode before returning.
+                    // SetSource is synchronous but decode is deferred -> image isn't ready
+                    // when we assign to img.Source, causing the "shows after switching" bug.
+                    await bmp.SetSourceAsync(thumbnail);
+                    return bmp;
+                }
+            }
+            catch { }
+            return null;
         }
 
         private void NewLayoutBtn_Click(object sender, RoutedEventArgs e)
@@ -387,8 +558,22 @@ namespace DesktopSnap
             {
                 if (layout.Icons.Count > 0)
                 {
-                    DesktopIconManager.SetIcons(layout.Icons);
-                    ShowStatus(InfoBarSeverity.Success, $"{I18n.Instance.L("Successfully restored")} {layout.Icons.Count} {I18n.Instance.ContainsIconsSuffix}");
+                    var result = DesktopIconManager.SetIcons(layout.Icons);
+
+                    var msg = new System.Text.StringBuilder();
+                    msg.Append($"{I18n.Instance.L("Repositioned:")} {result.Repositioned}");
+
+                    if (result.Recreated > 0)
+                        msg.Append($" | {I18n.Instance.L("Shortcuts recreated:")} {result.Recreated}");
+
+                    if (result.MissingFiles.Count > 0)
+                        msg.Append($" | {I18n.Instance.L("Cannot restore:")} {string.Join(", ", result.MissingFiles)}");
+
+                    if (result.ExtraIcons > 0)
+                        msg.Append($" | {I18n.Instance.L("Extra icons on desktop:")} {result.ExtraIcons}");
+
+                    var severity = result.MissingFiles.Count > 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success;
+                    ShowStatus(severity, msg.ToString());
                 }
                 else
                 {

@@ -17,14 +17,25 @@ namespace DesktopSnap
     {
         public I18n Lang => I18n.Instance;
 
-        // Icon thumbnail cache: file path -> BitmapImage
-        private static readonly ConcurrentDictionary<string, BitmapImage> _iconCache = new(StringComparer.OrdinalIgnoreCase);
-        private static readonly SemaphoreSlim _iconLoadSemaphore = new(10, 10); // Max 10 concurrent loads
+        // Icon thumbnail cache: file path -> DesktopIconCacheEntry
+        private class DesktopIconCacheEntry 
+        {
+            public BitmapImage Image { get; set; }
+            public object Stream { get; set; }
+        }
+
+        private static readonly ConcurrentDictionary<string, DesktopIconCacheEntry> _iconCache = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly SemaphoreSlim _iconLoadSemaphore = new(20, 20); // Max 20 concurrent loads
 
         public MainWindow()
         {
             SettingsManager.ApplySettings();
             this.InitializeComponent();
+
+            // Pre-cache system icon images on the main STA thread.
+            // Shell COM interfaces (IShellFolder) require STA and fail silently on thread pool (MTA) threads,
+            // which causes system icons to not appear on first load.
+            IconExtractor.InitSystemIcons();
 
             var lang = SettingsManager.Load().Language;
             foreach (ComboBoxItem item in LangCombo.Items)
@@ -214,46 +225,65 @@ namespace DesktopSnap
                 };
                 iconGrid.Children.Add(fontIcon);
 
-                // Load real icon - skip for plain folders
-                if (!isFolderLike && !string.IsNullOrEmpty(icon.FilePath))
+                // Load real icon
+                string loadPath = icon.FilePath ?? "";
+                string cacheKey = string.IsNullOrEmpty(loadPath) ? icon.Name : loadPath;
+                string fallbackPath = null;
+
+                if (isShortcut)
                 {
-                    string loadPath = icon.FilePath;
-                    string fallbackPath = null;
-                    if (isShortcut)
+                    // If the .lnk file itself was deleted, promote ShortcutTarget/IconLocation to primary path
+                    bool lnkExists = System.IO.File.Exists(loadPath);
+                    
+                    if (!string.IsNullOrEmpty(icon.ShortcutTarget) && System.IO.File.Exists(icon.ShortcutTarget))
                     {
-                        if (!string.IsNullOrEmpty(icon.ShortcutTarget) && System.IO.File.Exists(icon.ShortcutTarget))
+                        if (!lnkExists)
+                        {
+                            // .lnk is gone but target exe exists — use target as primary
+                            fallbackPath = loadPath;
+                            loadPath = icon.ShortcutTarget;
+                            cacheKey = loadPath;
+                        }
+                        else
                         {
                             fallbackPath = icon.ShortcutTarget;
                         }
-                        else if (!string.IsNullOrEmpty(icon.ShortcutIconLocation))
+                    }
+                    else if (!string.IsNullOrEmpty(icon.ShortcutIconLocation))
+                    {
+                        string loc = icon.ShortcutIconLocation;
+                        int commaIdx = loc.LastIndexOf(',');
+                        if (commaIdx > 0) loc = loc.Substring(0, commaIdx).Trim();
+                        
+                        if (System.IO.File.Exists(loc))
                         {
-                            string loc = icon.ShortcutIconLocation;
-                            int commaIdx = loc.LastIndexOf(',');
-                            if (commaIdx > 0) loc = loc.Substring(0, commaIdx).Trim();
-                            
-                            if (System.IO.File.Exists(loc))
+                            if (!lnkExists)
+                            {
+                                fallbackPath = loadPath;
+                                loadPath = loc;
+                                cacheKey = loadPath;
+                            }
+                            else
                             {
                                 fallbackPath = loc;
                             }
                         }
                     }
+                }
 
-                    // Synchronous cache check — instant display, no flash
-                    BitmapImage cachedBmp = null;
-                    if (_iconCache.TryGetValue(loadPath, out cachedBmp) ||
-                        (fallbackPath != null && _iconCache.TryGetValue(fallbackPath, out cachedBmp)))
-                    {
-                        var img = new Image { Width = 32, Height = 32, Stretch = Stretch.Uniform, Source = cachedBmp };
-                        iconGrid.Children.Add(img);
-                        fontIcon.Visibility = Visibility.Collapsed;
-                    }
-                    else
-                    {
-                        // Not cached — show fallback, load async
-                        var img = new Image { Width = 32, Height = 32, Stretch = Stretch.Uniform };
-                        iconGrid.Children.Add(img);
-                        _ = LoadIconAsync(img, fontIcon, loadPath, fallbackPath);
-                    }
+                DesktopIconCacheEntry cacheEntry = null;
+                if (_iconCache.TryGetValue(cacheKey, out cacheEntry) ||
+                    (fallbackPath != null && _iconCache.TryGetValue(fallbackPath, out cacheEntry)))
+                {
+                    var img = new Image { Width = 32, Height = 32, Stretch = Stretch.Uniform, Source = cacheEntry.Image };
+                    iconGrid.Children.Add(img);
+                    fontIcon.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    var img = new Image { Width = 32, Height = 32, Stretch = Stretch.Uniform };
+                    iconGrid.Children.Add(img);
+                    _ = LoadIconAsync(img, fontIcon, loadPath, fallbackPath, icon.Name, cacheKey);
                 }
 
                 // Shortcut arrow badge (bottom-left corner)
@@ -425,58 +455,67 @@ namespace DesktopSnap
 
         private int _iconLoadVersion = 0;
 
-        private async Task LoadIconAsync(Image img, FontIcon fallbackIcon, string filePath, string fallbackPath)
+        private async Task LoadIconAsync(Image img, FontIcon fallbackIcon, string filePath, string fallbackPath, string iconName, string cacheKey)
         {
             int myVersion = _iconLoadVersion;
             try
             {
-                // Cache hit = instant
-                if (_iconCache.TryGetValue(filePath, out var cached))
+                if (_iconCache.TryGetValue(cacheKey, out var cacheEntry))
                 {
-                    img.Source = cached;
+                    img.Source = cacheEntry.Image;
                     fallbackIcon.Visibility = Visibility.Collapsed;
                     return;
                 }
 
-                if (!System.IO.File.Exists(filePath))
-                {
-                    if (!string.IsNullOrEmpty(fallbackPath) && System.IO.File.Exists(fallbackPath))
-                        filePath = fallbackPath;
-                    else
-                        return;
-                }
-
-                // Throttle concurrent loads
                 await _iconLoadSemaphore.WaitAsync();
                 try
                 {
                     if (myVersion != _iconLoadVersion) return;
 
-                    // Double-check cache
-                    if (_iconCache.TryGetValue(filePath, out cached))
+                    if (_iconCache.TryGetValue(cacheKey, out cacheEntry))
                     {
-                        img.Source = cached;
+                        img.Source = cacheEntry.Image;
                         fallbackIcon.Visibility = Visibility.Collapsed;
                         return;
                     }
 
-                    // Direct load - NO timeout. Let it finish naturally, then display immediately.
-                    var bmp = await LoadThumbnail(filePath);
-
-                    // Try fallback path if primary failed
-                    if (bmp == null && !string.IsNullOrEmpty(fallbackPath) && fallbackPath != filePath)
+                    byte[] iconBytes = null;
+                    await Task.Run(() => { iconBytes = IconExtractor.GetIconBytes(filePath, iconName); });
+                    
+                    if (iconBytes == null || iconBytes.Length == 0)
                     {
-                        bmp = await LoadThumbnail(fallbackPath);
-                        if (bmp != null) filePath = fallbackPath;
+                        if (!string.IsNullOrEmpty(fallbackPath) && fallbackPath != filePath)
+                        {
+                            await Task.Run(() => { iconBytes = IconExtractor.GetIconBytes(fallbackPath, iconName); });
+                            if (iconBytes != null && iconBytes.Length > 0) cacheKey = fallbackPath;
+                        }
                     }
 
                     if (myVersion != _iconLoadVersion) return;
 
-                    if (bmp != null)
+                    if (iconBytes != null && iconBytes.Length > 0)
                     {
-                        _iconCache[filePath] = bmp;
-                        img.Source = bmp;
-                        fallbackIcon.Visibility = Visibility.Collapsed;
+                        var ras = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+                        using (var writer = new Windows.Storage.Streams.DataWriter(ras.GetOutputStreamAt(0)))
+                        {
+                            writer.WriteBytes(iconBytes);
+                            await writer.StoreAsync();
+                            writer.DetachStream();
+                        }
+                        ras.Seek(0);
+                        
+                        var bmp = new BitmapImage();
+                        await bmp.SetSourceAsync(ras); // Fully decode FIRST
+
+                        // Cache the fully-decoded image (always, regardless of version)
+                        _iconCache[cacheKey] = new DesktopIconCacheEntry { Image = bmp, Stream = ras };
+
+                        // Only update UI if this load is still relevant to the current preview
+                        if (myVersion == _iconLoadVersion)
+                        {
+                            img.Source = bmp;
+                            fallbackIcon.Visibility = Visibility.Collapsed;
+                        }
                     }
                 }
                 finally
@@ -485,28 +524,6 @@ namespace DesktopSnap
                 }
             }
             catch { }
-        }
-
-        private async Task<BitmapImage> LoadThumbnail(string filePath)
-        {
-            try
-            {
-                var storageFile = await Windows.Storage.StorageFile.GetFileFromPathAsync(filePath);
-                var thumbnail = await storageFile.GetThumbnailAsync(
-                    Windows.Storage.FileProperties.ThumbnailMode.SingleItem, 48);
-
-                if (thumbnail != null && thumbnail.Size > 0)
-                {
-                    var bmp = new BitmapImage();
-                    // Use SetSourceAsync to ensure full decode before returning.
-                    // SetSource is synchronous but decode is deferred -> image isn't ready
-                    // when we assign to img.Source, causing the "shows after switching" bug.
-                    await bmp.SetSourceAsync(thumbnail);
-                    return bmp;
-                }
-            }
-            catch { }
-            return null;
         }
 
         private void NewLayoutBtn_Click(object sender, RoutedEventArgs e)

@@ -28,3 +28,7 @@
 ## [操作系统临时文件]
 Thumbs.db
 Desktop.ini
+
+## [AI助手]
+.qoder/
+.agent/

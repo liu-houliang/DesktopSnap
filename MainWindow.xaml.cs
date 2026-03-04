@@ -1,4 +1,4 @@
-using Microsoft.UI.Xaml;
+﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
@@ -10,11 +10,55 @@ namespace DesktopSnap
 {
     public sealed partial class MainWindow : Window
     {
+        public I18n Lang => I18n.Instance;
+
         public MainWindow()
         {
+            SettingsManager.ApplySettings();
             this.InitializeComponent();
+
+            var lang = SettingsManager.Load().Language;
+            foreach (ComboBoxItem item in LangCombo.Items)
+            {
+                if (item.Tag?.ToString() == lang)
+                {
+                    LangCombo.SelectedItem = item;
+                    break;
+                }
+            }
+
             LayoutManager.AutoSaveTemporary();
             RefreshLayoutsList();
+        }
+
+        private void LangCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (LangCombo.SelectedItem is ComboBoxItem item && item.Tag != null)
+            {
+                var lang = item.Tag.ToString();
+                var settings = SettingsManager.Load();
+                if (settings.Language != lang)
+                {
+                    settings.Language = lang;
+                    SettingsManager.Save(settings);
+                    SettingsManager.ApplySettings();
+
+                    string selectedId = (LayoutsListView.SelectedItem as DesktopLayout)?.Id;
+                    RefreshLayoutsList();
+
+                    if (!string.IsNullOrEmpty(selectedId))
+                    {
+                        var updatedLayout = ((System.Collections.Generic.List<DesktopLayout>)LayoutsListView.ItemsSource).FirstOrDefault(l => l.Id == selectedId);
+                        if (updatedLayout != null)
+                        {
+                            LayoutsListView.SelectedItem = updatedLayout;
+                            DetailNameText.Text = updatedLayout.Name;
+                            DetailCountText.Text = $"{Lang.ContainsIconsPrefix}{updatedLayout.Icons.Count}{Lang.ContainsIconsSuffix}";
+                            DrawPreview(updatedLayout);
+                        }
+                    }
+                }
+            }
         }
 
         private void RefreshLayoutsList()
@@ -37,8 +81,20 @@ namespace DesktopSnap
                 StatusInfo.IsOpen = false;
 
                 DetailNameText.Text = layout.Name;
-                DetailCountText.Text = $"包含 {layout.Icons.Count} 个图标";
+                DetailCountText.Text = $"{Lang.ContainsIconsPrefix}{layout.Icons.Count}{Lang.ContainsIconsSuffix}";
 
+                if (layout.Id.StartsWith("auto_") || layout.Id == "temp_auto_save")
+                {
+                    RenameBtn.Visibility = Visibility.Collapsed;
+                    DeleteSnapshotBtn.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    RenameBtn.Visibility = Visibility.Visible;
+                    DeleteSnapshotBtn.Visibility = Visibility.Visible;
+                }
+
+                CancelRename();
                 DrawPreview(layout);
             }
             else
@@ -51,6 +107,11 @@ namespace DesktopSnap
         private void DrawPreview(DesktopLayout layout)
         {
             PreviewCanvas.Children.Clear();
+            DesktopJumpsPanel.Children.Clear();
+            
+            var jumpLabel = new TextBlock { Text = I18n.Instance.JumpToDesktop, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray), Margin = new Thickness(0,0,5,0) };
+            DesktopJumpsPanel.Children.Add(jumpLabel);
+
             if (layout.Icons.Count == 0) return;
 
             var displays = DisplayManager.GetDisplays();
@@ -98,7 +159,7 @@ namespace DesktopSnap
 
                 var screenText = new TextBlock
                 {
-                    Text = $"桌面 {displayIdx++}",
+                    Text = $"{I18n.Instance.ViewDesktop} {displayIdx}",
                     FontSize = 160,
                     Foreground = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)),
                     FontWeight = Microsoft.UI.Text.FontWeights.Bold
@@ -108,13 +169,34 @@ namespace DesktopSnap
 
                 PreviewCanvas.Children.Add(screenRect);
                 PreviewCanvas.Children.Add(screenText);
+
+                // Add Jump btn
+                var jumpBtn = new Button { Content = displayIdx.ToString(), Padding = new Thickness(8,4,8,4) };
+                int jumpX = display.Left - minX;
+                int jumpY = display.Top - minY;
+                jumpBtn.Click += (s, ev) => 
+                {
+                    PreviewScrollViewer.ChangeView(jumpX, jumpY, null);
+                };
+                DesktopJumpsPanel.Children.Add(jumpBtn);
+
+                displayIdx++;
             }
 
             foreach (var icon in layout.Icons)
             {
+                string glyph = "\uE7C3"; // Default Page
+                string lowered = icon.Name.ToLowerInvariant();
+                if (!lowered.Contains(".")) glyph = "\uE8B7"; // Folder shape
+                else if (lowered.EndsWith(".jpg") || lowered.EndsWith(".png") || lowered.EndsWith(".gif")) glyph = "\uEB9F"; // Picture
+                else if (lowered.EndsWith(".mp4") || lowered.EndsWith(".mkv")) glyph = "\uE8B2"; // Video
+                else if (lowered.EndsWith(".mp3") || lowered.EndsWith(".wav")) glyph = "\uE8D6"; // Audio
+                else if (lowered.EndsWith(".txt") || lowered.EndsWith(".doc") || lowered.EndsWith(".docx") || lowered.EndsWith(".pdf")) glyph = "\uE8A5"; // Custom Doc
+                else if (lowered.EndsWith(".zip") || lowered.EndsWith(".rar") || lowered.EndsWith(".7z")) glyph = "\uE7B8"; // Archive
+
                 var fontIcon = new FontIcon
                 {
-                    Glyph = "\uE7C3",
+                    Glyph = glyph,
                     FontSize = 32,
                     Foreground = new SolidColorBrush(Color.FromArgb(255, 120, 180, 255))
                 };
@@ -138,7 +220,116 @@ namespace DesktopSnap
                 PreviewCanvas.Children.Add(tb);
             }
             
-            PreviewScrollViewer.ChangeView(null, null, 0.15f);
+            PreviewScrollViewer.UpdateLayout();
+            if (PreviewScrollViewer.ActualWidth > 0)
+            {
+                FitZoomToScreen(true);
+            }
+            else
+            {
+                DispatcherQueue.TryEnqueue(() => FitZoomToScreen(true));
+            }
+        }
+
+        private void ZoomOriginalBtn_Click(object sender, RoutedEventArgs e)
+        {
+            PreviewScrollViewer.ChangeView(null, null, 1.0f);
+        }
+
+        private void ZoomFitBtn_Click(object sender, RoutedEventArgs e)
+        {
+            FitZoomToScreen(false);
+        }
+
+        private void FitZoomToScreen(bool disableAnimation)
+        {
+            if (PreviewCanvas.Width > 0 && PreviewCanvas.Height > 0)
+            {
+                double sw = PreviewScrollViewer.ActualWidth;
+                double sh = PreviewScrollViewer.ActualHeight;
+                if (sw == 0 || sh == 0) return;
+
+                double fitWidth = sw / (PreviewCanvas.Width + 40);
+                double fitHeight = sh / (PreviewCanvas.Height + 40);
+                float zoom = (float)Math.Min(fitWidth, fitHeight);
+                if (zoom <= 0) zoom = 0.15f;
+                // Leave a little margin and max limit to 1.0 for very small screen captures
+                zoom *= 0.95f; 
+                if (zoom > 1.0f) zoom = 1.0f;
+                PreviewScrollViewer.ChangeView(null, null, zoom, disableAnimation);
+            }
+        }
+
+        private void RenameBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (LayoutsListView.SelectedItem is DesktopLayout layout)
+            {
+                NameEditBox.Text = layout.Name;
+                RenamePanel.Visibility = Visibility.Visible;
+                RenameBtn.Visibility = Visibility.Collapsed;
+                DetailNameText.Visibility = Visibility.Collapsed;
+                NameEditBox.Focus(FocusState.Programmatic);
+            }
+        }
+
+        private void RenameConfirmBtn_Click(object sender, RoutedEventArgs e)
+        {
+            ConfirmRename();
+        }
+
+        private void RenameCancelBtn_Click(object sender, RoutedEventArgs e)
+        {
+            CancelRename();
+        }
+
+        private void NameEditBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                ConfirmRename();
+                e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.Escape)
+            {
+                CancelRename();
+                e.Handled = true;
+            }
+        }
+
+        private void NameEditBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            var focused = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(this.Content.XamlRoot);
+            if (!object.Equals(focused, RenameConfirmBtn))
+            {
+                CancelRename();
+            }
+        }
+
+        private void ConfirmRename()
+        {
+            if (LayoutsListView.SelectedItem is DesktopLayout layout)
+            {
+                string newName = NameEditBox.Text.Trim();
+                if (!string.IsNullOrEmpty(newName) && layout.Name != newName)
+                {
+                    LayoutManager.RenameLayout(layout.Id, newName);
+                    DetailNameText.Text = newName;
+                    
+                    RefreshLayoutsList();
+                    LayoutsListView.SelectedItem = ((System.Collections.Generic.List<DesktopLayout>)LayoutsListView.ItemsSource).FirstOrDefault(l => l.Id == layout.Id);
+                }
+            }
+            CancelRename();
+        }
+
+        private void CancelRename()
+        {
+            RenamePanel.Visibility = Visibility.Collapsed;
+            if (LayoutsListView.SelectedItem is DesktopLayout layout && !layout.Id.StartsWith("auto_") && layout.Id != "temp_auto_save")
+            {
+                RenameBtn.Visibility = Visibility.Visible;
+            }
+            DetailNameText.Visibility = Visibility.Visible;
         }
 
         private string TruncateStr(string str, int length)
@@ -152,19 +343,19 @@ namespace DesktopSnap
             var icons = DesktopIconManager.GetIcons();
             if (icons.Count == 0 && !string.IsNullOrEmpty(DesktopIconManager.LastLog))
             {
-                ShowStatus(InfoBarSeverity.Error, "未能读取到图标。");
+                ShowStatus(InfoBarSeverity.Error, I18n.Instance.L("Failed to read icons."));
                 return;
             }
 
             var newLayout = new DesktopLayout
             {
-                Name = $"快照 {DateTime.Now:MM-dd HH:mm}",
+                Name = $"Snapshot {DateTime.Now:MM-dd HH:mm}",
                 Icons = icons
             };
             LayoutManager.SaveLayout(newLayout);
             RefreshLayoutsList();
             LayoutsListView.SelectedItem = ((System.Collections.Generic.List<DesktopLayout>)LayoutsListView.ItemsSource).First(l => l.Id == newLayout.Id);
-            ShowStatus(InfoBarSeverity.Success, $"成功创建新快照：{newLayout.Name}");
+            ShowStatus(InfoBarSeverity.Success, $"{I18n.Instance.L("Successfully created snapshot:")} {newLayout.Name}");
         }
 
         private void OverwriteBtn_Click(object sender, RoutedEventArgs e)
@@ -176,7 +367,7 @@ namespace DesktopSnap
                 LayoutManager.SaveLayout(layout);
                 RefreshLayoutsList();
                 LayoutsListView.SelectedItem = ((System.Collections.Generic.List<DesktopLayout>)LayoutsListView.ItemsSource).FirstOrDefault(l => l.Id == layout.Id);
-                ShowStatus(InfoBarSeverity.Success, $"已使用当前桌面图标布局覆盖了：{layout.Name}");
+                ShowStatus(InfoBarSeverity.Success, $"{I18n.Instance.L("Overwrote snapshot:")} {layout.Name}");
             }
         }
 
@@ -186,7 +377,7 @@ namespace DesktopSnap
             {
                 LayoutManager.DeleteLayout(layout.Id);
                 RefreshLayoutsList();
-                ShowStatus(InfoBarSeverity.Informational, "已删除选定的快照。");
+                ShowStatus(InfoBarSeverity.Informational, I18n.Instance.L("Snapshot deleted."));
             }
         }
 
@@ -197,11 +388,11 @@ namespace DesktopSnap
                 if (layout.Icons.Count > 0)
                 {
                     DesktopIconManager.SetIcons(layout.Icons);
-                    ShowStatus(InfoBarSeverity.Success, $"已成功恢复布局，包含 {layout.Icons.Count} 个图标。");
+                    ShowStatus(InfoBarSeverity.Success, $"{I18n.Instance.L("Successfully restored")} {layout.Icons.Count} {I18n.Instance.ContainsIconsSuffix}");
                 }
                 else
                 {
-                    ShowStatus(InfoBarSeverity.Warning, "此快照中没有图标。");
+                    ShowStatus(InfoBarSeverity.Warning, I18n.Instance.L("No icons in this snapshot."));
                 }
             }
         }
@@ -214,3 +405,4 @@ namespace DesktopSnap
         }
     }
 }
+

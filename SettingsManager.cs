@@ -24,13 +24,18 @@ namespace DesktopSnap
             if (File.Exists(_settingsFile))
             {
                 try { return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_settingsFile)) ?? new AppSettings(); }
-                catch { }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"SettingsManager Error: {ex}"); }
             }
             return new AppSettings();
         }
 
         public static void Save(AppSettings settings)
         {
+            var dir = Path.GetDirectoryName(_settingsFile);
+            if (!Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
             File.WriteAllText(_settingsFile, JsonSerializer.Serialize(settings));
         }
 

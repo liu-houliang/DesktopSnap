@@ -33,18 +33,23 @@ namespace DesktopSnap
         public static List<DisplayInfo> GetDisplays()
         {
             var list = new List<DisplayInfo>();
-            EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero,
-                (IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData) =>
+            
+            // Keep the delegate rooted so GC doesn't collect it during native call
+            EnumMonitorsDelegate callback = (IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData) =>
+            {
+                list.Add(new DisplayInfo
                 {
-                    list.Add(new DisplayInfo
-                    {
-                        Left = lprcMonitor.left,
-                        Top = lprcMonitor.top,
-                        Right = lprcMonitor.right,
-                        Bottom = lprcMonitor.bottom
-                    });
-                    return true;
-                }, IntPtr.Zero);
+                    Left = lprcMonitor.left,
+                    Top = lprcMonitor.top,
+                    Right = lprcMonitor.right,
+                    Bottom = lprcMonitor.bottom
+                });
+                return true;
+            };
+
+            EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, callback, IntPtr.Zero);
+            
+            GC.KeepAlive(callback); // Ensure it survives the native call
             return list;
         }
     }

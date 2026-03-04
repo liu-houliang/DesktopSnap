@@ -68,7 +68,7 @@
                             </Button>
                         </StackPanel>
                         <TextBlock x:Name="DetailNameText" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center" />
-                        <Button x:Name="RenameBtn" Background="Transparent" BorderThickness="0" Padding="4" VerticalAlignment="Center" Click="RenameBtn_Click" ToolTipService.ToolTip="{x:Bind Lang.Settings, Mode=OneWay}">
+                        <Button x:Name="RenameBtn" Background="Transparent" BorderThickness="0" Padding="4" VerticalAlignment="Center" Click="RenameBtn_Click" ToolTipService.ToolTip="{x:Bind Lang.Rename, Mode=OneWay}">
                             <FontIcon Glyph="&#xE70F;" FontSize="14" />
                         </Button>
                         <TextBlock x:Name="DetailCountText" VerticalAlignment="Center" Foreground="Gray" FontSize="14" Margin="10,0,0,0" />
@@ -107,6 +107,14 @@
                 <InfoBar Grid.Row="3" x:Name="StatusInfo" IsOpen="False" />
             </Grid>
             <TextBlock x:Name="NoSelectionText" Text="{x:Bind Lang.NoSelection, Mode=OneWay}" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="Gray" FontSize="16" />
+            
+            <!-- Loading Overlay for Restore -->
+            <Grid x:Name="LoadingOverlay" Background="#99000000" Visibility="Collapsed" Canvas.ZIndex="100">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
+                    <ProgressRing IsActive="True" Width="64" Height="64" />
+                    <TextBlock Text="{x:Bind Lang.RestoringWait, Mode=OneWay}" FontSize="16" FontWeight="SemiBold" Foreground="White" />
+                </StackPanel>
+            </Grid>
         </Grid>
     </Grid>
 </Window>

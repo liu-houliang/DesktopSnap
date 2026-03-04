@@ -45,6 +45,16 @@ namespace DesktopSnap
         public string ContainsIconsPrefix => L("ContainsIconsPrefix");
         public string ContainsIconsSuffix => L("ContainsIconsSuffix");
         public string FitScreen => L("FitScreen");
+        public string Rename => L("Rename");
+        public string ConfirmDeleteTitle => L("ConfirmDeleteTitle");
+        public string ConfirmDeleteContent => L("ConfirmDeleteContent");
+        public string ConfirmOverwriteTitle => L("ConfirmOverwriteTitle");
+        public string ConfirmOverwriteContent => L("ConfirmOverwriteContent");
+        public string ConfirmRestoreTitle => L("ConfirmRestoreTitle");
+        public string ConfirmRestoreContent => L("ConfirmRestoreContent");
+        public string Yes => L("Yes");
+        public string Cancel => L("Cancel");
+        public string RestoringWait => L("RestoringWait");
 
         public string L(string key)
         {
@@ -86,7 +96,17 @@ namespace DesktopSnap
                 { "Repositioned:", "已复位:" },
                 { "Shortcuts recreated:", "已重建快捷方式:" },
                 { "Cannot restore:", "无法恢复:" },
-                { "Extra icons on desktop:", "桌面上的额外图标:" }
+                { "Extra icons on desktop:", "桌面上的额外图标:" },
+                { "Rename", "重命名" },
+                { "ConfirmDeleteTitle", "确认删除" },
+                { "ConfirmDeleteContent", "确定要永久删除此桌面快照吗？此操作无法撤销。" },
+                { "ConfirmOverwriteTitle", "确认覆盖" },
+                { "ConfirmOverwriteContent", "确定要用当前桌面的最新布局覆盖此快照吗？" },
+                { "ConfirmRestoreTitle", "确认恢复" },
+                { "ConfirmRestoreContent", "确定要将桌面图标恢复到此快照的状态吗？\n当前桌面上未保存的位置变动将会丢失。" },
+                { "Yes", "确定" },
+                { "Cancel", "取消" },
+                { "RestoringWait", "正在恢复桌面图标布局，请稍候..." }
             } },
             { "en", new Dictionary<string, string> {
                 { "AppTitle", "Desktop Snap v2.0" },
@@ -113,7 +133,17 @@ namespace DesktopSnap
                 { "Repositioned:", "Repositioned:" },
                 { "Shortcuts recreated:", "Shortcuts recreated:" },
                 { "Cannot restore:", "Cannot restore:" },
-                { "Extra icons on desktop:", "Extra icons on desktop:" }
+                { "Extra icons on desktop:", "Extra icons on desktop:" },
+                { "Rename", "Rename" },
+                { "ConfirmDeleteTitle", "Confirm Delete" },
+                { "ConfirmDeleteContent", "Are you sure you want to permanently delete this snapshot? This cannot be undone." },
+                { "ConfirmOverwriteTitle", "Confirm Overwrite" },
+                { "ConfirmOverwriteContent", "Are you sure you want to overwrite this snapshot with the current desktop layout?" },
+                { "ConfirmRestoreTitle", "Confirm Restore" },
+                { "ConfirmRestoreContent", "Are you sure you want to restore your desktop icons to this snapshot?\nUnsaved position changes on your current desktop will be lost." },
+                { "Yes", "Yes" },
+                { "Cancel", "Cancel" },
+                { "RestoringWait", "Restoring desktop icon layout, please wait..." }
             } }
         };
 

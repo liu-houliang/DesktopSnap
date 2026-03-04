@@ -32,6 +32,13 @@ namespace DesktopSnap
             SettingsManager.ApplySettings();
             this.InitializeComponent();
 
+            this.Title = I18n.Instance.AppTitle;
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
+            var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+            appWindow.Resize(new Windows.Graphics.SizeInt32(1050, 750));
+            try { appWindow.SetIcon("Assets\\app.ico"); } catch { }
+
             // Pre-cache system icon images on the main STA thread.
             // Shell COM interfaces (IShellFolder) require STA and fail silently on thread pool (MTA) threads,
             // which causes system icons to not appear on first load.
@@ -453,11 +460,11 @@ namespace DesktopSnap
             return false;
         }
 
-        private int _iconLoadVersion = 0;
+        private long _iconLoadVersion = 0;
 
         private async Task LoadIconAsync(Image img, FontIcon fallbackIcon, string filePath, string fallbackPath, string iconName, string cacheKey)
         {
-            int myVersion = _iconLoadVersion;
+            long myVersion = _iconLoadVersion;
             try
             {
                 if (_iconCache.TryGetValue(cacheKey, out var cacheEntry))
@@ -507,6 +514,12 @@ namespace DesktopSnap
                         var bmp = new BitmapImage();
                         await bmp.SetSourceAsync(ras); // Fully decode FIRST
 
+                        // Avoid unbounded memory growth
+                        if (_iconCache.Count > 200) 
+                        {
+                            _iconCache.Clear();
+                        }
+
                         // Cache the fully-decoded image (always, regardless of version)
                         _iconCache[cacheKey] = new DesktopIconCacheEntry { Image = bmp, Stream = ras };
 
@@ -523,7 +536,10 @@ namespace DesktopSnap
                     _iconLoadSemaphore.Release();
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LoadIconAsync Error: {ex}");
+            }
         }
 
         private void NewLayoutBtn_Click(object sender, RoutedEventArgs e)
@@ -542,40 +558,89 @@ namespace DesktopSnap
             };
             LayoutManager.SaveLayout(newLayout);
             RefreshLayoutsList();
-            LayoutsListView.SelectedItem = ((System.Collections.Generic.List<DesktopLayout>)LayoutsListView.ItemsSource).First(l => l.Id == newLayout.Id);
+            var matchedLayout = ((System.Collections.Generic.List<DesktopLayout>)LayoutsListView.ItemsSource).FirstOrDefault(l => l.Id == newLayout.Id);
+            if (matchedLayout != null) LayoutsListView.SelectedItem = matchedLayout;
             ShowStatus(InfoBarSeverity.Success, $"{I18n.Instance.L("Successfully created snapshot:")} {newLayout.Name}");
         }
 
-        private void OverwriteBtn_Click(object sender, RoutedEventArgs e)
+        private async void OverwriteBtn_Click(object sender, RoutedEventArgs e)
         {
             if (LayoutsListView.SelectedItem is DesktopLayout layout)
             {
-                var icons = DesktopIconManager.GetIcons();
-                layout.Icons = icons;
-                LayoutManager.SaveLayout(layout);
-                RefreshLayoutsList();
-                LayoutsListView.SelectedItem = ((System.Collections.Generic.List<DesktopLayout>)LayoutsListView.ItemsSource).FirstOrDefault(l => l.Id == layout.Id);
-                ShowStatus(InfoBarSeverity.Success, $"{I18n.Instance.L("Overwrote snapshot:")} {layout.Name}");
+                var dialog = new ContentDialog
+                {
+                    Title = I18n.Instance.ConfirmOverwriteTitle,
+                    Content = I18n.Instance.ConfirmOverwriteContent,
+                    PrimaryButtonText = I18n.Instance.Yes,
+                    CloseButtonText = I18n.Instance.Cancel,
+                    DefaultButton = ContentDialogButton.Close,
+                    XamlRoot = this.Content.XamlRoot
+                };
+
+                var result = await dialog.ShowAsync();
+                if (result == ContentDialogResult.Primary)
+                {
+                    var icons = DesktopIconManager.GetIcons();
+                    layout.Icons = icons;
+                    LayoutManager.SaveLayout(layout);
+                    RefreshLayoutsList();
+                    LayoutsListView.SelectedItem = ((System.Collections.Generic.List<DesktopLayout>)LayoutsListView.ItemsSource).FirstOrDefault(l => l.Id == layout.Id);
+                    ShowStatus(InfoBarSeverity.Success, $"{I18n.Instance.L("Overwrote snapshot:")} {layout.Name}");
+                }
             }
         }
 
-        private void DeleteBtn_Click(object sender, RoutedEventArgs e)
+        private async void DeleteBtn_Click(object sender, RoutedEventArgs e)
         {
             if (LayoutsListView.SelectedItem is DesktopLayout layout)
             {
-                LayoutManager.DeleteLayout(layout.Id);
-                RefreshLayoutsList();
-                ShowStatus(InfoBarSeverity.Informational, I18n.Instance.L("Snapshot deleted."));
+                var dialog = new ContentDialog
+                {
+                    Title = I18n.Instance.ConfirmDeleteTitle,
+                    Content = I18n.Instance.ConfirmDeleteContent,
+                    PrimaryButtonText = I18n.Instance.Yes,
+                    CloseButtonText = I18n.Instance.Cancel,
+                    DefaultButton = ContentDialogButton.Close,
+                    XamlRoot = this.Content.XamlRoot
+                };
+
+                var result = await dialog.ShowAsync();
+                if (result == ContentDialogResult.Primary)
+                {
+                    LayoutManager.DeleteLayout(layout.Id);
+                    RefreshLayoutsList();
+                    ShowStatus(InfoBarSeverity.Informational, I18n.Instance.L("Snapshot deleted."));
+                }
             }
         }
 
-        private void RestoreBtn_Click(object sender, RoutedEventArgs e)
+        private async void RestoreBtn_Click(object sender, RoutedEventArgs e)
         {
             if (LayoutsListView.SelectedItem is DesktopLayout layout)
             {
                 if (layout.Icons.Count > 0)
                 {
-                    var result = DesktopIconManager.SetIcons(layout.Icons);
+                    var dialog = new ContentDialog
+                    {
+                        Title = I18n.Instance.ConfirmRestoreTitle,
+                        Content = I18n.Instance.ConfirmRestoreContent,
+                        PrimaryButtonText = I18n.Instance.Yes,
+                        CloseButtonText = I18n.Instance.Cancel,
+                        DefaultButton = ContentDialogButton.Primary,
+                        XamlRoot = this.Content.XamlRoot
+                    };
+
+                    var dialogResult = await dialog.ShowAsync();
+                    if (dialogResult != ContentDialogResult.Primary)
+                    {
+                        return;
+                    }
+
+                    LoadingOverlay.Visibility = Visibility.Visible;
+                    
+                    var result = await Task.Run(() => DesktopIconManager.SetIcons(layout.Icons));
+                    
+                    LoadingOverlay.Visibility = Visibility.Collapsed;
 
                     var msg = new System.Text.StringBuilder();
                     msg.Append($"{I18n.Instance.L("Repositioned:")} {result.Repositioned}");
@@ -591,6 +656,9 @@ namespace DesktopSnap
 
                     var severity = result.MissingFiles.Count > 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success;
                     ShowStatus(severity, msg.ToString());
+                    
+                    // Explicitly draw the preview again since desktop has changed
+                    DrawPreview(layout);
                 }
                 else
                 {

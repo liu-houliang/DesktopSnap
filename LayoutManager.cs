@@ -47,7 +47,7 @@ namespace DesktopSnap
                         layouts.Add(layout);
                     }
                 }
-                catch { }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"LayoutManager Error: {ex}"); }
             }
             return layouts.OrderByDescending(l => l.Id.StartsWith("auto_") || l.Id == "temp_auto_save").ThenByDescending(l => l.SavedAt).ToList();
         }

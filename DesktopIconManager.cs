@@ -31,7 +31,23 @@ namespace DesktopSnap
 
     public static class DesktopIconManager
     {
-        public static string LastLog { get; set; } = "";
+        private static readonly object _logLock = new object();
+        private static System.Text.StringBuilder _logBuilder = new System.Text.StringBuilder();
+
+        public static string LastLog
+        {
+            get { lock (_logLock) return _logBuilder.ToString(); }
+        }
+
+        private static void AppendLog(string msg)
+        {
+            lock (_logLock) _logBuilder.Append(msg);
+        }
+
+        private static void ClearLog()
+        {
+            lock (_logLock) _logBuilder.Clear();
+        }
 
         [DllImport("user32.dll", SetLastError = true)]
         static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
@@ -119,7 +135,7 @@ namespace DesktopSnap
             if (lv != IntPtr.Zero)
             {
                 progmanCount = (int)SendMessage(lv, LVM_GETITEMCOUNT, IntPtr.Zero, IntPtr.Zero);
-                LastLog += $"Found Progman SysListView32: {lv} (Items: {progmanCount})\n";
+                AppendLog($"Found Progman SysListView32: {lv} (Items: {progmanCount})\n");
                 if (progmanCount > 0)
                 {
                     return lv;
@@ -136,7 +152,7 @@ namespace DesktopSnap
                     if (tempLv != IntPtr.Zero)
                     {
                         int count = (int)SendMessage(tempLv, LVM_GETITEMCOUNT, IntPtr.Zero, IntPtr.Zero);
-                        LastLog += $"Found WorkerW ({hwnd}) SysListView32: {tempLv} (Items: {count})\n";
+                        AppendLog($"Found WorkerW ({hwnd}) SysListView32: {tempLv} (Items: {count})\n");
                         if (count > 0)
                         {
                             listView = tempLv;
@@ -153,39 +169,39 @@ namespace DesktopSnap
 
             if (listView != IntPtr.Zero)
             {
-                LastLog += $"Selected WorkerW SysListView32: {listView}\n";
+                AppendLog($"Selected WorkerW SysListView32: {listView}\n");
                 return listView;
             }
 
-            LastLog += $"Selected Progman SysListView32: {lv}\n";
+            AppendLog($"Selected Progman SysListView32: {lv}\n");
             return lv; // Return whatever Progman had, even if 0
         }
 
         public static List<IconInfo> GetIcons()
         {
-            LastLog = "";
+            ClearLog();
             var icons = new List<IconInfo>();
             IntPtr listView = GetDesktopListView();
             
             if (listView == IntPtr.Zero)
             {
-                LastLog += "Error: Could not find any SysListView32 handle for desktop.\n";
+                AppendLog("Error: Could not find any SysListView32 handle for desktop.\n");
                 return icons;
             }
 
             GetWindowThreadProcessId(listView, out uint pid);
-            LastLog += $"Target Process ID: {pid}\n";
+            AppendLog($"Target Process ID: {pid}\n");
             
             IntPtr process = OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, false, pid);
             if (process == IntPtr.Zero)
             {
                 int err = Marshal.GetLastWin32Error();
-                LastLog += $"Error: OpenProcess failed with code {err}\n";
+                AppendLog($"Error: OpenProcess failed with code {err}\n");
                 return icons;
             }
 
             int count = (int)SendMessage(listView, LVM_GETITEMCOUNT, IntPtr.Zero, IntPtr.Zero);
-            LastLog += $"Action Get: Count verified: {count}\n";
+            AppendLog($"Action Get: Count verified: {count}\n");
             if (count == 0)
             {
                 CloseHandle(process);
@@ -200,7 +216,7 @@ namespace DesktopSnap
             if (pPointStr == IntPtr.Zero)
             {
                 int err = Marshal.GetLastWin32Error();
-                LastLog += $"Error: VirtualAllocEx failed with code {err}\n";
+                AppendLog($"Error: VirtualAllocEx failed with code {err}\n");
                 CloseHandle(process);
                 return icons;
             }
@@ -260,7 +276,7 @@ namespace DesktopSnap
             VirtualFreeEx(process, pPointStr, 0, MEM_RELEASE);
             CloseHandle(process);
 
-            LastLog += $"GetIcons completion: Valid names retrieved: {icons.Count}\n";
+            AppendLog($"GetIcons completion: Valid names retrieved: {icons.Count}\n");
 
             // Resolve file paths and shortcut metadata
             ResolveFilePaths(icons);
@@ -286,7 +302,7 @@ namespace DesktopSnap
                 shellType = Type.GetTypeFromProgID("WScript.Shell");
                 if (shellType != null) shell = Activator.CreateInstance(shellType);
             }
-            catch { }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"DesktopIconManager Error: {ex}"); }
 
             foreach (var icon in icons)
             {
@@ -305,14 +321,14 @@ namespace DesktopSnap
                             icon.ShortcutWorkingDir = shortcut.WorkingDirectory;
                             Marshal.ReleaseComObject(shortcut);
                         }
-                        catch { }
+                        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"DesktopIconManager Error: {ex}"); }
                     }
                 }
             }
 
             if (shell != null)
             {
-                try { Marshal.ReleaseComObject(shell); } catch { }
+                try { Marshal.ReleaseComObject(shell); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"DesktopIconManager Error: {ex}"); }
             }
         }
 
@@ -333,17 +349,17 @@ namespace DesktopSnap
                         lookup[fileNameNoExt] = entry;
                 }
             }
-            catch { }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"DesktopIconManager Error: {ex}"); }
         }
 
         public static RestoreResult SetIcons(List<IconInfo> icons)
         {
-            LastLog = "";
+            ClearLog();
             var result = new RestoreResult();
             IntPtr listView = GetDesktopListView();
             if (listView == IntPtr.Zero)
             {
-                LastLog += "Error (Set): SysListView32 handle not found.\n";
+                AppendLog("Error (Set): SysListView32 handle not found.\n");
                 return result;
             }
 
@@ -389,13 +405,13 @@ namespace DesktopSnap
                                 Marshal.ReleaseComObject(shortcut);
                                 Marshal.ReleaseComObject(shell);
                                 result.Recreated++;
-                                LastLog += $"Recreated shortcut: {icon.Name}\n";
+                                AppendLog($"Recreated shortcut: {icon.Name}\n");
                             }
                         }
                         catch (Exception ex)
                         {
                             result.MissingFiles.Add(icon.Name);
-                            LastLog += $"Failed to recreate shortcut {icon.Name}: {ex.Message}\n";
+                            AppendLog($"Failed to recreate shortcut {icon.Name}: {ex.Message}\n");
                         }
                     }
                     else if (!string.IsNullOrEmpty(icon.FilePath) && 
@@ -403,13 +419,13 @@ namespace DesktopSnap
                     {
                         // It was a regular file/folder - we cannot recreate it
                         result.MissingFiles.Add(icon.Name);
-                        LastLog += $"Cannot restore deleted file: {icon.Name}\n";
+                        AppendLog($"Cannot restore deleted file: {icon.Name}\n");
                     }
                     else
                     {
                         // No file path info (old snapshot format or system icon)
                         result.MissingFiles.Add(icon.Name);
-                        LastLog += $"Cannot restore (no path data): {icon.Name}\n";
+                        AppendLog($"Cannot restore (no path data): {icon.Name}\n");
                     }
                 }
             }
@@ -445,7 +461,7 @@ namespace DesktopSnap
             listView = GetDesktopListView();
             if (listView == IntPtr.Zero)
             {
-                LastLog += "Error (Set Phase 3): SysListView32 handle lost.\n";
+                AppendLog("Error (Set Phase 3): SysListView32 handle lost.\n");
                 return result;
             }
             GetWindowThreadProcessId(listView, out pid);
@@ -453,12 +469,12 @@ namespace DesktopSnap
             IntPtr process = OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, false, pid);
             if (process == IntPtr.Zero)
             {
-                LastLog += $"Error (Set): OpenProcess failed with code {Marshal.GetLastWin32Error()}\n";
+                AppendLog($"Error (Set): OpenProcess failed with code {Marshal.GetLastWin32Error()}\n");
                 return result;
             }
 
             int count = (int)SendMessage(listView, LVM_GETITEMCOUNT, IntPtr.Zero, IntPtr.Zero);
-            LastLog += $"Action Set Phase 3: Current count: {count}\n";
+            AppendLog($"Action Set Phase 3: Current count: {count}\n");
 
             uint itemSize = (uint)Marshal.SizeOf(typeof(LVITEMW));
             uint stringBufSize = 512;
@@ -538,7 +554,7 @@ namespace DesktopSnap
                 CloseHandle(writeProcess);
             }
 
-            LastLog += $"SetIcons completion: Repositioned {result.Repositioned}, Recreated {result.Recreated}, Missing {result.MissingFiles.Count}\n";
+            AppendLog($"SetIcons completion: Repositioned {result.Repositioned}, Recreated {result.Recreated}, Missing {result.MissingFiles.Count}\n");
             return result;
         }
 

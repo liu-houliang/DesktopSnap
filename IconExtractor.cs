@@ -156,7 +156,7 @@ namespace DesktopSnap
                                 CoTaskMemFree(pidl);
                             }
                         }
-                        catch { }
+                        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"IconExtractor Error: {ex}"); }
                     }
                     Marshal.ReleaseComObject(desktopFolder);
                 }
@@ -283,7 +283,7 @@ namespace DesktopSnap
                     Marshal.ReleaseComObject(desktopFolder);
                 }
             }
-            catch { }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"IconExtractor Error: {ex}"); }
 
             return hIcon;
         }

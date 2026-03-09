@@ -55,6 +55,7 @@ namespace DesktopSnap
         public string Yes => L("Yes");
         public string Cancel => L("Cancel");
         public string RestoringWait => L("RestoringWait");
+        public string All => L("All");
 
         public string L(string key)
         {
@@ -73,14 +74,14 @@ namespace DesktopSnap
         {
             { "zh", new Dictionary<string, string> {
                 { "AppTitle", "桌面布局快照器 v2.0" },
-                { "NewSnapshot", "➕ 新建桌面快照" },
+                { "NewSnapshot", "新建桌面快照" },
                 { "JumpToDesktop", "跳至桌面:" },
                 { "Zoom", "缩放:" },
-                { "Overwrite", "💾 覆盖更新为此桌面" },
-                { "Delete", "🗑️ 删除此快照" },
-                { "Restore", "🔄 恢复此布局" },
-                { "NoSelection", "👈 请选择左侧的桌面快照或新建一个" },
-                { "AutoTempSave", "🔄 自动备份" },
+                { "Overwrite", "覆盖更新为此桌面" },
+                { "Delete", "删除此快照" },
+                { "Restore", "恢复此布局" },
+                { "NoSelection", "请选择左侧的桌面快照或新建一个" },
+                { "AutoTempSave", "自动备份" },
                 { "StatusReady", "准备就绪" },
                 { "Settings", "设置" },
                 { "Language", "语言 (Language)" },
@@ -106,18 +107,19 @@ namespace DesktopSnap
                 { "ConfirmRestoreContent", "确定要将桌面图标恢复到此快照的状态吗？\n当前桌面上未保存的位置变动将会丢失。" },
                 { "Yes", "确定" },
                 { "Cancel", "取消" },
-                { "RestoringWait", "正在恢复桌面图标布局，请稍候..." }
+                { "RestoringWait", "正在恢复桌面图标布局，请稍候..." },
+                { "All", "全部" }
             } },
             { "en", new Dictionary<string, string> {
                 { "AppTitle", "Desktop Snap v2.0" },
-                { "NewSnapshot", "➕ New Snapshot" },
+                { "NewSnapshot", "New Snapshot" },
                 { "JumpToDesktop", "Jump to Display:" },
                 { "Zoom", "Zoom:" },
-                { "Overwrite", "💾 Overwrite with Current" },
-                { "Delete", "🗑️ Delete Snapshot" },
-                { "Restore", "🔄 Restore Layout" },
-                { "NoSelection", "👈 Please select a snapshot on the left or create a new one" },
-                { "AutoTempSave", "🔄 Auto Backup" },
+                { "Overwrite", "Overwrite with Current" },
+                { "Delete", "Delete Snapshot" },
+                { "Restore", "Restore Layout" },
+                { "NoSelection", "Please select a snapshot on the left or create a new one" },
+                { "AutoTempSave", "Auto Backup" },
                 { "StatusReady", "Ready" },
                 { "Settings", "Settings" },
                 { "Language", "Language" },
@@ -143,7 +145,8 @@ namespace DesktopSnap
                 { "ConfirmRestoreContent", "Are you sure you want to restore your desktop icons to this snapshot?\nUnsaved position changes on your current desktop will be lost." },
                 { "Yes", "Yes" },
                 { "Cancel", "Cancel" },
-                { "RestoringWait", "Restoring desktop icon layout, please wait..." }
+                { "RestoringWait", "Restoring desktop icon layout, please wait..." },
+                { "All", "All" }
             } }
         };
 

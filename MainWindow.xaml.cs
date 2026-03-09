@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
@@ -33,10 +33,29 @@ namespace DesktopSnap
             this.InitializeComponent();
 
             this.Title = I18n.Instance.AppTitle;
+            ExtendsContentIntoTitleBar = true;
+
             var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
             var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
-            appWindow.Resize(new Windows.Graphics.SizeInt32(1050, 750));
+
+            // Use DisplayArea for physical pixels (90% of work area)
+            var displayArea = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(windowId, Microsoft.UI.Windowing.DisplayAreaFallback.Primary);
+            int physWidth = displayArea.WorkArea.Width;
+            int physHeight = displayArea.WorkArea.Height;
+
+            int width = (int)(physWidth * 0.90); 
+            int height = (int)(physHeight * 0.90);
+            
+            // Allow larger sizes for 2K/4K
+            width = Math.Max(1200, Math.Min(width, 3400));
+            height = Math.Max(850, Math.Min(height, 2000));
+
+            // Precise physical centering
+            int x = (physWidth - width) / 2 + displayArea.WorkArea.X;
+            int y = (physHeight - height) / 2 + displayArea.WorkArea.Y;
+            appWindow.MoveAndResize(new Windows.Graphics.RectInt32(x, y, width, height));
+            
             try { appWindow.SetIcon("Assets\\app.ico"); } catch { }
 
             // Pre-cache system icon images on the main STA thread.
@@ -133,16 +152,40 @@ namespace DesktopSnap
 
         private void DrawPreview(DesktopLayout layout)
         {
-            _iconLoadVersion++; // Cancel any pending icon loads from previous preview
+            _iconLoadVersion++; // Cancel any pending icon loads
             PreviewCanvas.Children.Clear();
+            PreviewCanvas.Clip = null; // Clear any focus clip
             DesktopJumpsPanel.Children.Clear();
             
-            var jumpLabel = new TextBlock { Text = I18n.Instance.JumpToDesktop, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray), Margin = new Thickness(0,0,5,0) };
+            var displays = DisplayManager.GetDisplays();
+            
+            // Show jump panel only if there are multiple displays
+            DesktopJumpsPanel.Visibility = (displays.Count > 1) ? Visibility.Visible : Visibility.Collapsed;
+
+            var jumpLabel = new TextBlock { 
+                Text = I18n.Instance.JumpToDesktop, 
+                VerticalAlignment = VerticalAlignment.Center, 
+                Foreground = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255)), 
+                FontSize = 12,
+                Margin = new Thickness(0,0,5,0) 
+            };
             DesktopJumpsPanel.Children.Add(jumpLabel);
 
-            if (layout.Icons.Count == 0) return;
+            // Add 'ALL' button to see everything
+            var allBtn = new Button { 
+                Content = I18n.Instance.All, 
+                Padding = new Thickness(12,4,12,4),
+                CornerRadius = new CornerRadius(4),
+                FontSize = 12,
+                Style = Application.Current.Resources.TryGetValue("SubtleButtonStyle", out object styleAllObj) ? (styleAllObj as Style ?? new Style()) : new Style()
+            };
+            allBtn.Click += (s, ev) => {
+                PreviewCanvas.Clip = null;
+                FitZoomToScreen(false);
+            };
+            DesktopJumpsPanel.Children.Add(allBtn);
 
-            var displays = DisplayManager.GetDisplays();
+            if (layout.Icons.Count == 0) return;
 
             int minX = int.MaxValue;
             int minY = int.MaxValue;
@@ -178,33 +221,74 @@ namespace DesktopSnap
                 {
                     Width = display.Width,
                     Height = display.Height,
-                    Fill = new SolidColorBrush(Color.FromArgb(20, 255, 255, 255)),
-                    Stroke = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)),
-                    StrokeThickness = 2
+                    Fill = new SolidColorBrush(Color.FromArgb(40, 20, 20, 30)), // Deeper, more premium navy
+                    Stroke = new SolidColorBrush(Color.FromArgb(100, 100, 100, 150)), // Subtle blue-ish border
+                    StrokeThickness = 4
                 };
                 Canvas.SetLeft(screenRect, display.Left - minX);
                 Canvas.SetTop(screenRect, display.Top - minY);
+                Canvas.SetZIndex(screenRect, -2); // Ensure screens are at the very back
 
                 var screenText = new TextBlock
                 {
                     Text = $"{I18n.Instance.ViewDesktop} {displayIdx}",
-                    FontSize = 160,
-                    Foreground = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)),
-                    FontWeight = Microsoft.UI.Text.FontWeights.Bold
+                    FontSize = 120, // Slightly smaller, less overwhelming
+                    Foreground = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)), // Subtle ghost text
+                    FontWeight = Microsoft.UI.Text.FontWeights.ExtraBold,
+                    IsHitTestVisible = false
                 };
-                Canvas.SetLeft(screenText, display.Left - minX + 80);
-                Canvas.SetTop(screenText, display.Top - minY + 80);
+                // Position text at bottom-right of each screen with some margin
+                Canvas.SetLeft(screenText, display.Left - minX + display.Width - 450);
+                Canvas.SetTop(screenText, display.Top - minY + display.Height - 180);
+                Canvas.SetZIndex(screenText, -1); // Keep below icons but above screen background
 
                 PreviewCanvas.Children.Add(screenRect);
                 PreviewCanvas.Children.Add(screenText);
 
                 // Add Jump btn
-                var jumpBtn = new Button { Content = displayIdx.ToString(), Padding = new Thickness(8,4,8,4) };
-                int jumpX = display.Left - minX;
-                int jumpY = display.Top - minY;
+                var jumpBtn = new Button { 
+                    Content = displayIdx.ToString(), 
+                    Padding = new Thickness(12,4,12,4),
+                    CornerRadius = new CornerRadius(4),
+                    FontSize = 12,
+                    Style = Application.Current.Resources.TryGetValue("SubtleButtonStyle", out object styleObj) ? (styleObj as Style ?? new Style()) : new Style()
+                };
+                
+                var currentDisp = display; // closure
                 jumpBtn.Click += (s, ev) => 
                 {
-                    PreviewScrollViewer.ChangeView(jumpX, jumpY, null);
+                    double sw = PreviewScrollViewer.ActualWidth;
+                    double sh = PreviewScrollViewer.ActualHeight;
+                    if (sw == 0 || sh == 0) return;
+
+                    // Calculate zoom to fill screen with slight padding (40px)
+                    double fitWidth = sw / (currentDisp.Width + 40);
+                    double fitHeight = sh / (currentDisp.Height + 40);
+                    float zoom = (float)Math.Min(fitWidth, fitHeight);
+                    if (zoom > 1.2f) zoom = 1.2f;
+
+                    // Canvas coordinates (relative to minX/minY)
+                    double relX = currentDisp.Left - minX;
+                    double relY = currentDisp.Top - minY;
+
+                    // APPLY CLIP: Hide everything else
+                    PreviewCanvas.Clip = new RectangleGeometry { 
+                        Rect = new Windows.Foundation.Rect(relX, relY, currentDisp.Width, currentDisp.Height) 
+                    };
+
+                    // CALCULATE OFFSET: 
+                    // 1. (relX * zoom) is the top-left of the display in the zoomed space.
+                    // 2. We want to subtract half of the 'empty space' in the viewer to center it.
+                    // If display width * zoom is less than viewer width, we shift left.
+                    double viewerCenterX = sw / 2.0;
+                    double viewerCenterY = sh / 2.0;
+                    double contentCenterX = (relX + currentDisp.Width / 2.0) * zoom;
+                    double contentCenterY = (relY + currentDisp.Height / 2.0) * zoom;
+
+                    double viewX = contentCenterX - viewerCenterX;
+                    double viewY = contentCenterY - viewerCenterY;
+
+                    PreviewScrollViewer.ChangeView(viewX, viewY, zoom);
                 };
                 DesktopJumpsPanel.Children.Add(jumpBtn);
 
@@ -349,6 +433,7 @@ namespace DesktopSnap
 
         private void ZoomFitBtn_Click(object sender, RoutedEventArgs e)
         {
+            PreviewCanvas.Clip = null; // Clear focus clip to see all monitors
             FitZoomToScreen(false);
         }
 

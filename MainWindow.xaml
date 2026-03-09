@@ -8,113 +8,229 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid Padding="20">
+    <Window.SystemBackdrop>
+        <MicaBackdrop Kind="Base" />
+    </Window.SystemBackdrop>
+
+    <Grid>
+        <Grid.Resources>
+            <!-- Card Style for ListView Items -->
+            <Style x:Key="SnapshotItemStyle" TargetType="ListViewItem">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Margin" Value="0,4" />
+                <Setter Property="Padding" Value="12,12" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListViewItem">
+                            <Grid x:Name="RootGrid" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal" />
+                                        <VisualState x:Name="PointerOver">
+                                            <Storyboard>
+                                                <ColorAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="(Grid.Background).(SolidColorBrush.Color)" To="#1affffff" Duration="0:0:0.1" />
+                                            </Storyboard>
+                                        </VisualState>
+                                        <VisualState x:Name="Pressed">
+                                            <Storyboard>
+                                                <ColorAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="(Grid.Background).(SolidColorBrush.Color)" To="#26ffffff" Duration="0:0:0.1" />
+                                            </Storyboard>
+                                        </VisualState>
+                                        <VisualState x:Name="Selected">
+                                            <Storyboard>
+                                                <ColorAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="(Grid.Background).(SolidColorBrush.Color)" To="#33ffffff" Duration="0:0:0.1" />
+                                            </Storyboard>
+                                        </VisualState>
+                                        <VisualState x:Name="SelectedPointerOver">
+                                            <Storyboard>
+                                                <ColorAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="(Grid.Background).(SolidColorBrush.Color)" To="#3effffff" Duration="0:0:0.1" />
+                                            </Storyboard>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                                <ContentPresenter />
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </Grid.Resources>
+
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="280" />
+            <ColumnDefinition Width="320" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <Grid Grid.Column="0" BorderBrush="#333333" BorderThickness="0,0,1,0" Padding="0,0,20,0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+        <!-- Sidebar -->
+        <Border Grid.Column="0" Background="#11ffffff" BorderBrush="#11ffffff" BorderThickness="0,0,1,0">
+            <Grid Padding="24,32,24,24">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-            <TextBlock Text="{x:Bind Lang.AppTitle, Mode=OneWay}" Style="{StaticResource TitleTextBlockStyle}" Margin="0,0,0,10"/>
-            
-            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10" Margin="0,0,0,20">
-                <TextBlock Text="{x:Bind Lang.Language, Mode=OneWay}" VerticalAlignment="Center" Foreground="Gray" FontSize="12" />
-                <ComboBox x:Name="LangCombo" SelectionChanged="LangCombo_SelectionChanged" FontSize="12" MinWidth="100">
-                    <ComboBoxItem Content="Auto" Tag="auto" />
-                    <ComboBoxItem Content="中文" Tag="zh" />
-                    <ComboBoxItem Content="English" Tag="en" />
-                </ComboBox>
-            </StackPanel>
+                <TextBlock Text="{x:Bind Lang.AppTitle, Mode=OneWay}" 
+                           FontSize="24" FontWeight="Bold" 
+                           Margin="0,0,0,24" Foreground="White" />
+                
+                <Button Grid.Row="1" 
+                        Click="NewLayoutBtn_Click" 
+                        HorizontalAlignment="Stretch" 
+                        Padding="0,12" Margin="0,0,0,24"
+                        Background="{ThemeResource SystemAccentColor}"
+                        Foreground="White"
+                        CornerRadius="8">
+                    <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+                        <FontIcon Glyph="&#xE710;" FontSize="16" Foreground="White" />
+                        <TextBlock Text="{x:Bind Lang.NewSnapshot, Mode=OneWay}" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Button>
 
-            <Button Grid.Row="2" Content="{x:Bind Lang.NewSnapshot, Mode=OneWay}" HorizontalAlignment="Stretch" Click="NewLayoutBtn_Click" Margin="0,0,0,10" Style="{StaticResource AccentButtonStyle}"/>
+                <ListView Grid.Row="3" x:Name="LayoutsListView" 
+                          SelectionChanged="LayoutsListView_SelectionChanged" 
+                          SelectionMode="Single"
+                          ItemContainerStyle="{StaticResource SnapshotItemStyle}">
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" Foreground="White" />
+                                <TextBlock Text="{Binding SavedTime}" FontSize="12" Foreground="#99ffffff" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
 
-            <ListView Grid.Row="3" x:Name="LayoutsListView" SelectionChanged="LayoutsListView_SelectionChanged" SelectionMode="Single">
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Margin="0,8">
-                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="16" />
-                            <TextBlock Text="{Binding SavedTime}" FontSize="12" Foreground="DarkGray" Margin="0,4,0,0" />
-                        </StackPanel>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-        </Grid>
+                <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="12" Margin="0,24,0,0">
+                    <TextBlock Text="{x:Bind Lang.Language, Mode=OneWay}" VerticalAlignment="Center" Foreground="#99ffffff" FontSize="12" />
+                    <ComboBox x:Name="LangCombo" SelectionChanged="LangCombo_SelectionChanged" 
+                              FontSize="12" MinWidth="120" CornerRadius="4">
+                        <ComboBoxItem Content="Auto" Tag="auto" />
+                        <ComboBoxItem Content="中文" Tag="zh" />
+                        <ComboBoxItem Content="English" Tag="en" />
+                    </ComboBox>
+                </StackPanel>
+            </Grid>
+        </Border>
 
-        <Grid Grid.Column="1" Padding="20,0,0,0">
-            <Grid x:Name="DetailPanel" Visibility="Collapsed">
+        <!-- Main Content -->
+        <Grid Grid.Column="1" Background="Transparent">
+            <Grid x:Name="DetailPanel" Visibility="Collapsed" Padding="32">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0" Orientation="Vertical" Margin="0,0,0,15">
-                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,10">
-                        <StackPanel Orientation="Horizontal" Spacing="4" x:Name="RenamePanel" Visibility="Collapsed">
-                            <TextBox x:Name="NameEditBox" Width="200" VerticalAlignment="Center" KeyDown="NameEditBox_KeyDown" LostFocus="NameEditBox_LostFocus" />
-                            <Button x:Name="RenameConfirmBtn" Background="Transparent" BorderThickness="0" Padding="4" VerticalAlignment="Center" Click="RenameConfirmBtn_Click">
-                                <FontIcon Glyph="&#xE73E;" FontSize="14" Foreground="LightGreen" />
-                            </Button>
-                            <Button x:Name="RenameCancelBtn" Background="Transparent" BorderThickness="0" Padding="4" VerticalAlignment="Center" Click="RenameCancelBtn_Click">
-                                <FontIcon Glyph="&#xE711;" FontSize="14" Foreground="IndianRed" />
+                <!-- Detail Header -->
+                <Grid Grid.Row="0" Margin="0,0,0,24">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Spacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <StackPanel Orientation="Horizontal" Spacing="8" x:Name="RenamePanel" Visibility="Collapsed">
+                                <TextBox x:Name="NameEditBox" Width="250" VerticalAlignment="Center" 
+                                         KeyDown="NameEditBox_KeyDown" LostFocus="NameEditBox_LostFocus" 
+                                         CornerRadius="4" />
+                                <Button x:Name="RenameConfirmBtn" Style="{StaticResource SubtleButtonStyle}" 
+                                        Click="RenameConfirmBtn_Click" ToolTipService.ToolTip="Confirm">
+                                    <FontIcon Glyph="&#xE73E;" FontSize="14" Foreground="#FF66FF66" />
+                                </Button>
+                                <Button x:Name="RenameCancelBtn" Style="{StaticResource SubtleButtonStyle}" 
+                                        Click="RenameCancelBtn_Click" ToolTipService.ToolTip="Cancel">
+                                    <FontIcon Glyph="&#xE711;" FontSize="14" Foreground="#FFFF6666" />
+                                </Button>
+                            </StackPanel>
+                            
+                            <TextBlock x:Name="DetailNameText" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <Button x:Name="RenameBtn" Style="{StaticResource SubtleButtonStyle}" 
+                                    Click="RenameBtn_Click" ToolTipService.ToolTip="{x:Bind Lang.Rename, Mode=OneWay}">
+                                <FontIcon Glyph="&#xE70F;" FontSize="14" Opacity="0.7" />
                             </Button>
                         </StackPanel>
-                        <TextBlock x:Name="DetailNameText" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center" />
-                        <Button x:Name="RenameBtn" Background="Transparent" BorderThickness="0" Padding="4" VerticalAlignment="Center" Click="RenameBtn_Click" ToolTipService.ToolTip="{x:Bind Lang.Rename, Mode=OneWay}">
-                            <FontIcon Glyph="&#xE70F;" FontSize="14" />
-                        </Button>
-                        <TextBlock x:Name="DetailCountText" VerticalAlignment="Center" Foreground="Gray" FontSize="14" Margin="10,0,0,0" />
+                        <TextBlock x:Name="DetailCountText" Foreground="#99ffffff" FontSize="13" />
                     </StackPanel>
 
-                    <StackPanel Orientation="Horizontal" Spacing="20">
-                        <StackPanel Orientation="Horizontal" Spacing="5" x:Name="DesktopJumpsPanel">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Top">
+                        <!-- Desktop Jumps (Hidden if single monitor) -->
+                        <StackPanel x:Name="DesktopJumpsPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed"
+                                    VerticalAlignment="Center">
                             <!-- Buttons will be dynamically generated here -->
                         </StackPanel>
-
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Text="{x:Bind Lang.Zoom, Mode=OneWay}" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,5,0" />
-                            <Button Content="{x:Bind Lang.FitScreen, Mode=OneWay}" Click="ZoomFitBtn_Click" Padding="8,4" />
-                            <Button Content="100%" Click="ZoomOriginalBtn_Click" Padding="8,4" />
+                        
+                        <StackPanel Orientation="Horizontal" BorderBrush="#22ffffff" BorderThickness="1" CornerRadius="6" Padding="4">
+                            <Button Content="{x:Bind Lang.FitScreen, Mode=OneWay}" Click="ZoomFitBtn_Click" 
+                                    Style="{StaticResource SubtleButtonStyle}" Padding="12,4" />
+                            <Border Width="1" Background="#22ffffff" Margin="4,2" />
+                            <Button Content="100%" Click="ZoomOriginalBtn_Click" 
+                                    Style="{StaticResource SubtleButtonStyle}" Padding="12,4" />
                         </StackPanel>
                     </StackPanel>
-                </StackPanel>
+                </Grid>
 
-                <Border Grid.Row="1" Background="#111111" CornerRadius="8" BorderBrush="#333333" BorderThickness="1" Margin="0,0,0,20">
-                    <ScrollViewer x:Name="PreviewScrollViewer" 
-                                  ZoomMode="Enabled" 
-                                  HorizontalScrollBarVisibility="Auto" 
-                                  VerticalScrollBarVisibility="Auto" 
-                                  HorizontalScrollMode="Enabled" 
-                                  VerticalScrollMode="Enabled">
-                        <Canvas x:Name="PreviewCanvas" Background="Transparent" HorizontalAlignment="Left" VerticalAlignment="Top" />
-                    </ScrollViewer>
-                </Border>
+                <!-- Preview Area -->
+                <Grid Grid.Row="1">
+                    <Border Background="#11ffffff" CornerRadius="12" BorderBrush="#22ffffff" BorderThickness="1">
+                        <ScrollViewer x:Name="PreviewScrollViewer" 
+                                      ZoomMode="Enabled" 
+                                      HorizontalScrollBarVisibility="Auto" 
+                                      VerticalScrollBarVisibility="Auto" 
+                                      HorizontalScrollMode="Enabled" 
+                                      VerticalScrollMode="Enabled">
+                            <Canvas x:Name="PreviewCanvas" Background="Transparent" 
+                                    HorizontalAlignment="Left" VerticalAlignment="Top" />
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
 
-                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" Margin="0,0,0,20">
-                    <Button x:Name="OverwriteBtn" Content="{x:Bind Lang.Overwrite, Mode=OneWay}" Click="OverwriteBtn_Click" />
-                    <Button x:Name="DeleteSnapshotBtn" Content="{x:Bind Lang.Delete, Mode=OneWay}" Click="DeleteBtn_Click" />
-                    <Button x:Name="RestoreSnapshotBtn" Content="{x:Bind Lang.Restore, Mode=OneWay}" Click="RestoreBtn_Click" Style="{StaticResource AccentButtonStyle}" />
-                </StackPanel>
+                <!-- Bottom Actions -->
+                <Grid Grid.Row="2" Margin="0,24,0,0">
+                    <InfoBar x:Name="StatusInfo" IsOpen="False" HorizontalAlignment="Left" />
+                    
+                    <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right">
+                        <Button x:Name="OverwriteBtn" Click="OverwriteBtn_Click" CornerRadius="6" Padding="16,8">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE78C;" FontSize="14" />
+                                <TextBlock Text="{x:Bind Lang.Overwrite, Mode=OneWay}" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="DeleteSnapshotBtn" Click="DeleteBtn_Click" CornerRadius="6" Padding="16,8">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                                <TextBlock Text="{x:Bind Lang.Delete, Mode=OneWay}" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="RestoreSnapshotBtn" Click="RestoreBtn_Click" 
+                                Style="{StaticResource AccentButtonStyle}" CornerRadius="6" Padding="24,8">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE777;" FontSize="16" />
+                                <TextBlock Text="{x:Bind Lang.Restore, Mode=OneWay}" FontWeight="SemiBold" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
 
-                <InfoBar Grid.Row="3" x:Name="StatusInfo" IsOpen="False" />
+                <!-- Loading Overlay -->
+                <Grid x:Name="LoadingOverlay" Grid.RowSpan="3" Background="#cc000000" CornerRadius="12" 
+                      Visibility="Collapsed" Canvas.ZIndex="100">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="20">
+                        <ProgressRing IsActive="True" Width="48" Height="48" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                        <TextBlock Text="{x:Bind Lang.RestoringWait, Mode=OneWay}" FontSize="16" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Grid>
             </Grid>
-            <TextBlock x:Name="NoSelectionText" Text="{x:Bind Lang.NoSelection, Mode=OneWay}" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="Gray" FontSize="16" />
-            
-            <!-- Loading Overlay for Restore -->
-            <Grid x:Name="LoadingOverlay" Background="#99000000" Visibility="Collapsed" Canvas.ZIndex="100">
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
-                    <ProgressRing IsActive="True" Width="64" Height="64" />
-                    <TextBlock Text="{x:Bind Lang.RestoringWait, Mode=OneWay}" FontSize="16" FontWeight="SemiBold" Foreground="White" />
-                </StackPanel>
-            </Grid>
+
+            <!-- Empty State -->
+            <StackPanel x:Name="NoSelectionText" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16" Opacity="0.5">
+                <FontIcon Glyph="&#xE11A;" FontSize="64" />
+                <TextBlock Text="{x:Bind Lang.NoSelection, Mode=OneWay}" FontSize="18" />
+            </StackPanel>
         </Grid>
     </Grid>
 </Window>

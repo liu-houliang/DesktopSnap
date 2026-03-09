@@ -15,8 +15,8 @@ namespace DesktopSnap
 
         static SettingsManager()
         {
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            _settingsFile = Path.Combine(appData, "DesktopSnap", "settings.json");
+            string appData = AppContext.BaseDirectory;
+            _settingsFile = Path.Combine(appData, "Config", "settings.json");
         }
 
         public static AppSettings Load()

@@ -6,14 +6,34 @@
     <RootNamespace>DesktopSnap</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Platforms>x86;x64;ARM64</Platforms>
-    <RuntimeIdentifiers Condition="$([MSBuild]::GetTargetFrameworkVersion('$(TargetFramework)')) &gt;= 8">win-x86;win-x64;win-arm64</RuntimeIdentifiers>
-    <RuntimeIdentifiers Condition="$([MSBuild]::GetTargetFrameworkVersion('$(TargetFramework)')) &lt; 8">win10-x86;win10-x64;win10-arm64</RuntimeIdentifiers>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
     <PublishProfile>win-$(Platform).pubxml</PublishProfile>
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <PublishTrimmed>false</PublishTrimmed>
+    <SatelliteResourceLanguages>en-US;zh-Hans</SatelliteResourceLanguages>
   </PropertyGroup>
 
+  <!-- 强制清理多余语言文件夹的 Target -->
+  <Target Name="CleanupLanguageFolders" AfterTargets="Publish">
+    <ItemGroup>
+      <LanguageFolders Include="$([System.IO.Directory]::GetDirectories('$(PublishDir)'))" />
+      <!-- 指定要保留的文件夹（注意：这里不区分大小写，但路径要匹配） -->
+      <FoldersToKeep Include="$(PublishDir)en-US" />
+      <FoldersToKeep Include="$(PublishDir)zh-Hans" />
+      <FoldersToKeep Include="$(PublishDir)zh-CN" />
+      <FoldersToKeep Include="$(PublishDir)Assets" />
+      <FoldersToKeep Include="$(PublishDir)Settings" />
+      <FoldersToKeep Include="$(PublishDir)Microsoft.UI.Xaml" />
+      <!-- 计算差集 -->
+      <FoldersToRemove Include="@(LanguageFolders)" Exclude="@(FoldersToKeep)" />
+    </ItemGroup>
+    <Message Importance="high" Text="正在清理多余的语言文件夹..." />
+    <RemoveDir Directories="@(FoldersToRemove)" />
+  </Target>
   <ItemGroup>
     <Content Include="Assets\SplashScreen.scale-200.png" />
     <Content Include="Assets\LockScreenLogo.scale-200.png" />

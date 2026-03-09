@@ -21,8 +21,8 @@ namespace DesktopSnap
 
         static LayoutManager()
         {
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            _layoutsDirectory = Path.Combine(appData, "DesktopSnap", "Layouts");
+            string appData = AppContext.BaseDirectory;
+            _layoutsDirectory = Path.Combine(appData, "Config", "Layouts");
             Directory.CreateDirectory(_layoutsDirectory);
         }
 

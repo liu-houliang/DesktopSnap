@@ -363,10 +363,29 @@ namespace DesktopSnap
                 }
 
                 double displayDpi = 96;
-                // Find which display this icon belongs to in current environment to get DPI
+                bool isOriginalMode = PreviewModePanel.Visibility == Visibility.Visible && 
+                                     (PreviewModeCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "original";
+
+                // Find which display this icon belongs to in current environment to get current DPI
                 var targetDisp = displays.FirstOrDefault(d => icon.X >= d.Left && icon.X < d.Right && icon.Y >= d.Top && icon.Y < d.Bottom) ?? displays.FirstOrDefault();
                 if (targetDisp != null) displayDpi = targetDisp.Dpi;
-                double iconScale = displayDpi / 96.0;
+
+                double iconScale;
+                if (isOriginalMode && layout.CapturedDisplays != null)
+                {
+                    // In Original mode, we want to show the icon at the size it was captured
+                    // Find the captured DPI for this icon
+                    uint capDpi = 96;
+                    var capDisp = layout.CapturedDisplays.FirstOrDefault(d => icon.X >= d.Left && icon.X < d.Right && icon.Y >= d.Top && icon.Y < d.Bottom);
+                    if (capDisp != null) capDpi = capDisp.Dpi;
+                    else if (layout.CapturedDisplays.Count > 0) capDpi = layout.CapturedDisplays[0].Dpi;
+                    
+                    iconScale = capDpi / 96.0;
+                }
+                else
+                {
+                    iconScale = displayDpi / 96.0;
+                }
 
                 double iconVisualSize = 32 * iconScale;
                 double fontSize = 11 * iconScale;
@@ -477,35 +496,13 @@ namespace DesktopSnap
             }
 
             var currentDisplays = DisplayManager.GetDisplays();
-            if (layout.CapturedDisplays == null || layout.CapturedDisplays.Count == 0)
+            if (layout.CapturedDisplays == null || layout.CapturedDisplays.Count == 0 || currentDisplays.Count == 0)
             {
-                // Fallback: Global scaling
-                int oldMinX = layout.Icons.Min(i => i.X);
-                int oldMinY = layout.Icons.Min(i => i.Y);
-                int oldMaxX = layout.Icons.Max(i => i.X) + 64;
-                int oldMaxY = layout.Icons.Max(i => i.Y) + 64;
-                int oldW = oldMaxX - oldMinX;
-                int oldH = oldMaxY - oldMinY;
-
-                int curMinX = currentDisplays.Min(d => d.Left);
-                int curMinY = currentDisplays.Min(d => d.Top);
-                int curMaxX = currentDisplays.Max(d => d.Right);
-                int curMaxY = currentDisplays.Max(d => d.Bottom);
-                int curW = curMaxX - curMinX;
-                int curH = curMaxY - curMinY;
-
-                if (oldW <= 0 || oldH <= 0) return layout.Icons;
-
-                return layout.Icons.Select(icon => new IconInfo {
-                    Name = icon.Name, FilePath = icon.FilePath,
-                    ShortcutTarget = icon.ShortcutTarget, ShortcutArgs = icon.ShortcutArgs,
-                    ShortcutIconLocation = icon.ShortcutIconLocation, ShortcutWorkingDir = icon.ShortcutWorkingDir,
-                    X = curMinX + (int)((double)(icon.X - oldMinX) / oldW * curW),
-                    Y = curMinY + (int)((double)(icon.Y - oldMinY) / oldH * curH)
-                }).ToList();
+                return layout.Icons;
             }
 
             return layout.Icons.Select(icon => {
+                // 1. Find which monitor this icon was on
                 int monIdx = -1;
                 for (int j = 0; j < layout.CapturedDisplays.Count; j++)
                 {
@@ -517,37 +514,63 @@ namespace DesktopSnap
                     }
                 }
 
-                if (monIdx >= 0 && monIdx < currentDisplays.Count)
-                {
-                    var oldMon = layout.CapturedDisplays[monIdx];
-                    var newMon = currentDisplays[monIdx];
+                if (monIdx < 0) return icon;
 
-                    // Handle missing DPI info for old snapshots
+                // 2. Find the corresponding monitor in current environment
+                var oldMon = layout.CapturedDisplays[monIdx];
+                var newMon = currentDisplays.FirstOrDefault(d => !string.IsNullOrEmpty(d.DeviceName) && d.DeviceName == oldMon.DeviceName);
+                
+                // Fallback to index if device name match fails (or for old snapshots)
+                if (newMon == null && monIdx < currentDisplays.Count)
+                {
+                    newMon = currentDisplays[monIdx];
+                }
+
+                if (newMon != null)
+                {
                     uint oldDpi = oldMon.Dpi > 0 ? oldMon.Dpi : 96;
                     uint newDpi = newMon.Dpi > 0 ? newMon.Dpi : 96;
 
-                    // Logical Resolution Ratio
-                    double oldLogW = oldMon.Width / (oldDpi / 96.0);
-                    double oldLogH = oldMon.Height / (oldDpi / 96.0);
-                    double newLogW = newMon.Width / (newDpi / 96.0);
-                    double newLogH = newMon.Height / (newDpi / 96.0);
+                    // Calculate relative logical position within the monitor
+                    // (icon.X - oldMon.Left) is physical pixels from left edge
+                    // Divide by (oldDpi/96.0) to get logical pixels
+                    double oldScale = oldDpi / 96.0;
+                    double relLogX = (double)(icon.X - oldMon.Left) / oldScale;
+                    double relLogY = (double)(icon.Y - oldMon.Top) / oldScale;
 
-                    // If physical resolution is same but DPI changed, ratio will reflect the logical size change
-                    double ratioX = newLogW / oldLogW;
-                    double ratioY = newLogH / oldLogH;
+                    // If physical resolution is the same, we simply stay at the same logical position
+                    // This ensures icons stay in the same "grid cells" if only DPI changed.
+                    if (oldMon.Width == newMon.Width && oldMon.Height == newMon.Height)
+                    {
+                        double newScale = newDpi / 96.0;
+                        return new IconInfo {
+                            Name = icon.Name, FilePath = icon.FilePath,
+                            ShortcutTarget = icon.ShortcutTarget, ShortcutArgs = icon.ShortcutArgs,
+                            ShortcutIconLocation = icon.ShortcutIconLocation, ShortcutWorkingDir = icon.ShortcutWorkingDir,
+                            X = newMon.Left + (int)(relLogX * newScale),
+                            Y = newMon.Top + (int)(relLogY * newScale)
+                        };
+                    }
+                    else
+                    {
+                        // Physical resolution changed - maintain relative logical percentage
+                        double oldLogW = oldMon.Width / oldScale;
+                        double oldLogH = oldMon.Height / oldScale;
+                        double newScale = newDpi / 96.0;
+                        double newLogW = newMon.Width / newScale;
+                        double newLogH = newMon.Height / newScale;
 
-                    // Calculate position relative to logically scaled screen
-                    double relX = (double)(icon.X - oldMon.Left) / (oldDpi / 96.0) / oldLogW;
-                    double relY = (double)(icon.Y - oldMon.Top) / (oldDpi / 96.0) / oldLogH;
+                        double ratioX = relLogX / oldLogW;
+                        double ratioY = relLogY / oldLogH;
 
-                    return new IconInfo {
-                        Name = icon.Name, FilePath = icon.FilePath,
-                        ShortcutTarget = icon.ShortcutTarget, ShortcutArgs = icon.ShortcutArgs,
-                        ShortcutIconLocation = icon.ShortcutIconLocation, ShortcutWorkingDir = icon.ShortcutWorkingDir,
-                        // Convery back to physical pixels in new environment
-                        X = newMon.Left + (int)(relX * newLogW * (newDpi / 96.0)),
-                        Y = newMon.Top + (int)(relY * newLogH * (newDpi / 96.0))
-                    };
+                        return new IconInfo {
+                            Name = icon.Name, FilePath = icon.FilePath,
+                            ShortcutTarget = icon.ShortcutTarget, ShortcutArgs = icon.ShortcutArgs,
+                            ShortcutIconLocation = icon.ShortcutIconLocation, ShortcutWorkingDir = icon.ShortcutWorkingDir,
+                            X = newMon.Left + (int)(ratioX * newLogW * newScale),
+                            Y = newMon.Top + (int)(ratioY * newLogH * newScale)
+                        };
+                    }
                 }
                 return icon;
             }).ToList();

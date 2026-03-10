@@ -26,6 +26,7 @@ namespace DesktopSnap
 
         private static readonly ConcurrentDictionary<string, DesktopIconCacheEntry> _iconCache = new(StringComparer.OrdinalIgnoreCase);
         private static readonly SemaphoreSlim _iconLoadSemaphore = new(20, 20); // Max 20 concurrent loads
+        private int _selectedDisplayIndex = -1; // -1 for all displays
 
         public MainWindow()
         {
@@ -141,6 +142,33 @@ namespace DesktopSnap
                 }
 
                 CancelRename();
+                
+                // Resolution mismatch detection
+                var currentDisplays = DisplayManager.GetDisplays();
+                bool mismatched = false;
+                if (layout.CapturedDisplays != null && layout.CapturedDisplays.Count > 0)
+                {
+                    if (layout.CapturedDisplays.Count != currentDisplays.Count) mismatched = true;
+                    else
+                    {
+                        for (int i = 0; i < currentDisplays.Count; i++)
+                        {
+                            var cur = currentDisplays[i];
+                            var cap = layout.CapturedDisplays[i];
+                            if (cur.Width != cap.Width || 
+                                cur.Height != cap.Height ||
+                                (cap.Dpi > 0 && cur.Dpi != cap.Dpi)) // Only check if snapshot has DPI info
+                            {
+                                mismatched = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                ResolutionWarnBar.IsOpen = mismatched;
+                PreviewModePanel.Visibility = mismatched ? Visibility.Visible : Visibility.Collapsed;
+                
                 DrawPreview(layout);
             }
             else
@@ -180,36 +208,38 @@ namespace DesktopSnap
                 Style = Application.Current.Resources.TryGetValue("SubtleButtonStyle", out object styleAllObj) ? (styleAllObj as Style ?? new Style()) : new Style()
             };
             allBtn.Click += (s, ev) => {
-                PreviewCanvas.Clip = null;
-                FitZoomToScreen(false);
+                _selectedDisplayIndex = -1;
+                DrawPreview(layout);
             };
             DesktopJumpsPanel.Children.Add(allBtn);
 
-            if (layout.Icons.Count == 0) return;
+            var iconsToDraw = GetEffectiveIcons(layout);
+            if (iconsToDraw.Count == 0) return;
 
-            int minX = int.MaxValue;
-            int minY = int.MaxValue;
-            int maxX = int.MinValue;
-            int maxY = int.MinValue;
+            int minX, minY, maxX, maxY;
 
-            if (displays.Count > 0)
+            if (_selectedDisplayIndex >= 0 && _selectedDisplayIndex < displays.Count)
             {
-                minX = displays.Min(d => d.Left);
-                minY = displays.Min(d => d.Top);
-                maxX = displays.Max(d => d.Right);
-                maxY = displays.Max(d => d.Bottom);
+                var target = displays[_selectedDisplayIndex];
+                minX = target.Left - 40;
+                minY = target.Top - 40;
+                maxX = target.Right + 40;
+                maxY = target.Bottom + 60; // Extra room for labels at bottom
+            }
+            else if (displays.Count > 0)
+            {
+                minX = displays.Min(d => d.Left) - 40;
+                minY = displays.Min(d => d.Top) - 40;
+                maxX = displays.Max(d => d.Right) + 80;
+                maxY = displays.Max(d => d.Bottom) + 100;
             }
             else
             {
-                minX = layout.Icons.Min(i => i.X);
-                minY = layout.Icons.Min(i => i.Y);
-                maxX = layout.Icons.Max(i => i.X) + 64;
-                maxY = layout.Icons.Max(i => i.Y) + 64;
+                minX = iconsToDraw.Min(i => i.X) - 40;
+                minY = iconsToDraw.Min(i => i.Y) - 40;
+                maxX = iconsToDraw.Max(i => i.X) + 104; // 64 + 40
+                maxY = iconsToDraw.Max(i => i.Y) + 164; // 64 + 100
             }
-
-            // Ensure bounding box logic is safe
-            minX -= 40; minY -= 40;
-            maxX += 80; maxY += 100;
 
             PreviewCanvas.Width = maxX - minX;
             PreviewCanvas.Height = maxY - minY;
@@ -254,48 +284,18 @@ namespace DesktopSnap
                     Style = Application.Current.Resources.TryGetValue("SubtleButtonStyle", out object styleObj) ? (styleObj as Style ?? new Style()) : new Style()
                 };
                 
-                var currentDisp = display; // closure
+                var currentIndex = displayIdx - 1;
                 jumpBtn.Click += (s, ev) => 
                 {
-                    double sw = PreviewScrollViewer.ActualWidth;
-                    double sh = PreviewScrollViewer.ActualHeight;
-                    if (sw == 0 || sh == 0) return;
-
-                    // Calculate zoom to fill screen with slight padding (40px)
-                    double fitWidth = sw / (currentDisp.Width + 40);
-                    double fitHeight = sh / (currentDisp.Height + 40);
-                    float zoom = (float)Math.Min(fitWidth, fitHeight);
-                    if (zoom > 1.2f) zoom = 1.2f;
-
-                    // Canvas coordinates (relative to minX/minY)
-                    double relX = currentDisp.Left - minX;
-                    double relY = currentDisp.Top - minY;
-
-                    // APPLY CLIP: Hide everything else
-                    PreviewCanvas.Clip = new RectangleGeometry { 
-                        Rect = new Windows.Foundation.Rect(relX, relY, currentDisp.Width, currentDisp.Height) 
-                    };
-
-                    // CALCULATE OFFSET: 
-                    // 1. (relX * zoom) is the top-left of the display in the zoomed space.
-                    // 2. We want to subtract half of the 'empty space' in the viewer to center it.
-                    // If display width * zoom is less than viewer width, we shift left.
-                    double viewerCenterX = sw / 2.0;
-                    double viewerCenterY = sh / 2.0;
-                    double contentCenterX = (relX + currentDisp.Width / 2.0) * zoom;
-                    double contentCenterY = (relY + currentDisp.Height / 2.0) * zoom;
-
-                    double viewX = contentCenterX - viewerCenterX;
-                    double viewY = contentCenterY - viewerCenterY;
-
-                    PreviewScrollViewer.ChangeView(viewX, viewY, zoom);
+                    _selectedDisplayIndex = currentIndex;
+                    DrawPreview(layout);
                 };
                 DesktopJumpsPanel.Children.Add(jumpBtn);
 
                 displayIdx++;
             }
 
-            foreach (var icon in layout.Icons)
+            foreach (var icon in iconsToDraw)
             {
                 bool isShortcut = !string.IsNullOrEmpty(icon.FilePath) &&
                                   icon.FilePath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase);
@@ -362,17 +362,26 @@ namespace DesktopSnap
                     }
                 }
 
+                double displayDpi = 96;
+                // Find which display this icon belongs to in current environment to get DPI
+                var targetDisp = displays.FirstOrDefault(d => icon.X >= d.Left && icon.X < d.Right && icon.Y >= d.Top && icon.Y < d.Bottom) ?? displays.FirstOrDefault();
+                if (targetDisp != null) displayDpi = targetDisp.Dpi;
+                double iconScale = displayDpi / 96.0;
+
+                double iconVisualSize = 32 * iconScale;
+                double fontSize = 11 * iconScale;
+
                 DesktopIconCacheEntry cacheEntry = null;
                 if (_iconCache.TryGetValue(cacheKey, out cacheEntry) ||
                     (fallbackPath != null && _iconCache.TryGetValue(fallbackPath, out cacheEntry)))
                 {
-                    var img = new Image { Width = 32, Height = 32, Stretch = Stretch.Uniform, Source = cacheEntry.Image };
+                    var img = new Image { Width = iconVisualSize, Height = iconVisualSize, Stretch = Stretch.Uniform, Source = cacheEntry.Image };
                     iconGrid.Children.Add(img);
                     fontIcon.Visibility = Visibility.Collapsed;
                 }
                 else
                 {
-                    var img = new Image { Width = 32, Height = 32, Stretch = Stretch.Uniform };
+                    var img = new Image { Width = iconVisualSize, Height = iconVisualSize, Stretch = Stretch.Uniform };
                     iconGrid.Children.Add(img);
                     _ = LoadIconAsync(img, fontIcon, loadPath, fallbackPath, icon.Name, cacheKey);
                 }
@@ -399,17 +408,17 @@ namespace DesktopSnap
                 var tb = new TextBlock
                 {
                     Text = icon.Name,
-                    FontSize = 11,
+                    FontSize = fontSize,
                     Foreground = new SolidColorBrush(Color.FromArgb(255, 230, 230, 230)),
-                    Width = 72,
+                    Width = 72 * iconScale,
                     MaxLines = 2,
                     TextTrimming = TextTrimming.CharacterEllipsis,
                     TextAlignment = TextAlignment.Center,
                     TextWrapping = TextWrapping.Wrap
                 };
                 ToolTipService.SetToolTip(tb, icon.Name);
-                Canvas.SetLeft(tb, icon.X - minX - 20);
-                Canvas.SetTop(tb, icon.Y - minY + 36);
+                Canvas.SetLeft(tb, icon.X - minX - (20 * iconScale));
+                Canvas.SetTop(tb, icon.Y - minY + (36 * iconScale));
 
                 PreviewCanvas.Children.Add(iconGrid);
                 PreviewCanvas.Children.Add(tb);
@@ -433,8 +442,11 @@ namespace DesktopSnap
 
         private void ZoomFitBtn_Click(object sender, RoutedEventArgs e)
         {
-            PreviewCanvas.Clip = null; // Clear focus clip to see all monitors
-            FitZoomToScreen(false);
+            _selectedDisplayIndex = -1;
+            if (LayoutsListView.SelectedItem is DesktopLayout layout)
+            {
+                DrawPreview(layout);
+            }
         }
 
         private void FitZoomToScreen(bool disableAnimation)
@@ -453,6 +465,99 @@ namespace DesktopSnap
                 zoom *= 0.95f; 
                 if (zoom > 1.0f) zoom = 1.0f;
                 PreviewScrollViewer.ChangeView(null, null, zoom, disableAnimation);
+            }
+        }
+
+        private List<IconInfo> GetEffectiveIcons(DesktopLayout layout)
+        {
+            if (PreviewModePanel.Visibility == Visibility.Collapsed || 
+                (PreviewModeCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() != "scale")
+            {
+                return layout.Icons;
+            }
+
+            var currentDisplays = DisplayManager.GetDisplays();
+            if (layout.CapturedDisplays == null || layout.CapturedDisplays.Count == 0)
+            {
+                // Fallback: Global scaling
+                int oldMinX = layout.Icons.Min(i => i.X);
+                int oldMinY = layout.Icons.Min(i => i.Y);
+                int oldMaxX = layout.Icons.Max(i => i.X) + 64;
+                int oldMaxY = layout.Icons.Max(i => i.Y) + 64;
+                int oldW = oldMaxX - oldMinX;
+                int oldH = oldMaxY - oldMinY;
+
+                int curMinX = currentDisplays.Min(d => d.Left);
+                int curMinY = currentDisplays.Min(d => d.Top);
+                int curMaxX = currentDisplays.Max(d => d.Right);
+                int curMaxY = currentDisplays.Max(d => d.Bottom);
+                int curW = curMaxX - curMinX;
+                int curH = curMaxY - curMinY;
+
+                if (oldW <= 0 || oldH <= 0) return layout.Icons;
+
+                return layout.Icons.Select(icon => new IconInfo {
+                    Name = icon.Name, FilePath = icon.FilePath,
+                    ShortcutTarget = icon.ShortcutTarget, ShortcutArgs = icon.ShortcutArgs,
+                    ShortcutIconLocation = icon.ShortcutIconLocation, ShortcutWorkingDir = icon.ShortcutWorkingDir,
+                    X = curMinX + (int)((double)(icon.X - oldMinX) / oldW * curW),
+                    Y = curMinY + (int)((double)(icon.Y - oldMinY) / oldH * curH)
+                }).ToList();
+            }
+
+            return layout.Icons.Select(icon => {
+                int monIdx = -1;
+                for (int j = 0; j < layout.CapturedDisplays.Count; j++)
+                {
+                    var d = layout.CapturedDisplays[j];
+                    if (icon.X >= d.Left && icon.X < d.Right && icon.Y >= d.Top && icon.Y < d.Bottom)
+                    {
+                        monIdx = j;
+                        break;
+                    }
+                }
+
+                if (monIdx >= 0 && monIdx < currentDisplays.Count)
+                {
+                    var oldMon = layout.CapturedDisplays[monIdx];
+                    var newMon = currentDisplays[monIdx];
+
+                    // Handle missing DPI info for old snapshots
+                    uint oldDpi = oldMon.Dpi > 0 ? oldMon.Dpi : 96;
+                    uint newDpi = newMon.Dpi > 0 ? newMon.Dpi : 96;
+
+                    // Logical Resolution Ratio
+                    double oldLogW = oldMon.Width / (oldDpi / 96.0);
+                    double oldLogH = oldMon.Height / (oldDpi / 96.0);
+                    double newLogW = newMon.Width / (newDpi / 96.0);
+                    double newLogH = newMon.Height / (newDpi / 96.0);
+
+                    // If physical resolution is same but DPI changed, ratio will reflect the logical size change
+                    double ratioX = newLogW / oldLogW;
+                    double ratioY = newLogH / oldLogH;
+
+                    // Calculate position relative to logically scaled screen
+                    double relX = (double)(icon.X - oldMon.Left) / (oldDpi / 96.0) / oldLogW;
+                    double relY = (double)(icon.Y - oldMon.Top) / (oldDpi / 96.0) / oldLogH;
+
+                    return new IconInfo {
+                        Name = icon.Name, FilePath = icon.FilePath,
+                        ShortcutTarget = icon.ShortcutTarget, ShortcutArgs = icon.ShortcutArgs,
+                        ShortcutIconLocation = icon.ShortcutIconLocation, ShortcutWorkingDir = icon.ShortcutWorkingDir,
+                        // Convery back to physical pixels in new environment
+                        X = newMon.Left + (int)(relX * newLogW * (newDpi / 96.0)),
+                        Y = newMon.Top + (int)(relY * newLogH * (newDpi / 96.0))
+                    };
+                }
+                return icon;
+            }).ToList();
+        }
+
+        private void PreviewModeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (LayoutsListView.SelectedItem is DesktopLayout layout)
+            {
+                DrawPreview(layout);
             }
         }
 
@@ -639,7 +744,8 @@ namespace DesktopSnap
             var newLayout = new DesktopLayout
             {
                 Name = $"Snapshot {DateTime.Now:MM-dd HH:mm}",
-                Icons = icons
+                Icons = icons,
+                CapturedDisplays = DisplayManager.GetDisplays()
             };
             LayoutManager.SaveLayout(newLayout);
             RefreshLayoutsList();
@@ -667,6 +773,7 @@ namespace DesktopSnap
                 {
                     var icons = DesktopIconManager.GetIcons();
                     layout.Icons = icons;
+                    layout.CapturedDisplays = DisplayManager.GetDisplays();
                     LayoutManager.SaveLayout(layout);
                     RefreshLayoutsList();
                     LayoutsListView.SelectedItem = ((System.Collections.Generic.List<DesktopLayout>)LayoutsListView.ItemsSource).FirstOrDefault(l => l.Id == layout.Id);
@@ -715,34 +822,29 @@ namespace DesktopSnap
                         XamlRoot = this.Content.XamlRoot
                     };
 
-                    var dialogResult = await dialog.ShowAsync();
-                    if (dialogResult != ContentDialogResult.Primary)
-                    {
-                        return;
-                    }
+                    if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+                    var iconsToRestore = GetEffectiveIcons(layout);
 
                     LoadingOverlay.Visibility = Visibility.Visible;
-                    
-                    var result = await Task.Run(() => DesktopIconManager.SetIcons(layout.Icons));
-                    
+                    var result = await Task.Run(() => DesktopIconManager.SetIcons(iconsToRestore));
                     LoadingOverlay.Visibility = Visibility.Collapsed;
 
                     var msg = new System.Text.StringBuilder();
                     msg.Append($"{I18n.Instance.L("Repositioned:")} {result.Repositioned}");
+                    if (result.Recreated > 0) msg.Append($" | {I18n.Instance.L("Shortcuts recreated:")} {result.Recreated}");
+                    if (result.MissingFiles.Count > 0) msg.Append($" | {I18n.Instance.L("Cannot restore:")} {string.Join(", ", result.MissingFiles)}");
+                    if (result.ExtraIcons > 0) msg.Append($" | {I18n.Instance.L("Extra icons on desktop:")} {result.ExtraIcons}");
 
-                    if (result.Recreated > 0)
-                        msg.Append($" | {I18n.Instance.L("Shortcuts recreated:")} {result.Recreated}");
-
-                    if (result.MissingFiles.Count > 0)
-                        msg.Append($" | {I18n.Instance.L("Cannot restore:")} {string.Join(", ", result.MissingFiles)}");
-
-                    if (result.ExtraIcons > 0)
-                        msg.Append($" | {I18n.Instance.L("Extra icons on desktop:")} {result.ExtraIcons}");
-
-                    var severity = result.MissingFiles.Count > 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success;
-                    ShowStatus(severity, msg.ToString());
-                    
-                    // Explicitly draw the preview again since desktop has changed
+                    if (result.AutoArrangeEnabled)
+                    {
+                        var fullMsg = I18n.Instance.AutoArrangeWarning + "\n\n" + msg.ToString();
+                        ShowStatus(InfoBarSeverity.Warning, fullMsg);
+                    }
+                    else
+                    {
+                        ShowStatus(result.MissingFiles.Count > 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success, msg.ToString());
+                    }
                     DrawPreview(layout);
                 }
                 else

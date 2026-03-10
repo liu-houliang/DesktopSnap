@@ -27,6 +27,7 @@ namespace DesktopSnap
         public int Recreated { get; set; }
         public List<string> MissingFiles { get; set; } = new List<string>();
         public int ExtraIcons { get; set; }  // Icons on desktop not in snapshot
+        public bool AutoArrangeEnabled { get; set; } // Detected auto-arrange state
     }
 
     public static class DesktopIconManager
@@ -89,6 +90,10 @@ namespace DesktopSnap
         const uint LVM_SETITEMPOSITION = 0x100F;
         const uint LVM_SETITEMPOSITION32 = 0x1031;
         const uint LVM_ARRANGE = 0x1016;
+        const uint LVM_REDRAWITEMS = 0x1015;
+        const uint LVM_UPDATE = 0x102A;
+        const int GWL_STYLE = -16;
+        const int LVS_AUTOARRANGE = 0x0100;
 
         const uint PROCESS_VM_OPERATION = 0x0008;
         const uint PROCESS_VM_READ = 0x0010;
@@ -97,6 +102,12 @@ namespace DesktopSnap
         const uint MEM_COMMIT = 0x1000;
         const uint MEM_RELEASE = 0x8000;
         const uint PAGE_READWRITE = 0x04;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+        
+        [DllImport("user32.dll")]
+        static extern bool InvalidateRect(IntPtr hWnd, IntPtr lpRect, bool bErase);
 
         struct POINT
         {
@@ -363,6 +374,18 @@ namespace DesktopSnap
                 return result;
             }
 
+            int style = GetWindowLong(listView, GWL_STYLE);
+            if (style == 0)
+            {
+                int error = Marshal.GetLastWin32Error();
+                if (error != 0) AppendLog($"Warning: GetWindowLong failed with error {error}\n");
+            }
+            result.AutoArrangeEnabled = (style & LVS_AUTOARRANGE) != 0;
+            if (result.AutoArrangeEnabled)
+            {
+                AppendLog("Warning: Auto-arrange is enabled on desktop. Positions might not be applied.\n");
+            }
+
             GetWindowThreadProcessId(listView, out uint pid);
 
             // ===== PHASE 1: Recreate missing shortcuts =====
@@ -446,10 +469,10 @@ namespace DesktopSnap
             {
                 System.Threading.Thread.Sleep(800); // Give Explorer time to register
                 // Refresh desktop
-                IntPtr desktopHwnd = FindWindow("Progman", null);
-                if (desktopHwnd != IntPtr.Zero)
+                IntPtr refreshHwnd = FindWindow("Progman", null);
+                if (refreshHwnd != IntPtr.Zero)
                 {
-                    SendMessage(desktopHwnd, 0x0111, (IntPtr)0x7103, IntPtr.Zero); // Refresh
+                    SendMessage(refreshHwnd, 0x0111, (IntPtr)0x7103, IntPtr.Zero); // Refresh
                 }
                 System.Threading.Thread.Sleep(400);
             }
@@ -544,6 +567,7 @@ namespace DesktopSnap
 
                             WriteProcessMemory(writeProcess, pPoint, localPt, pointSize, out _);
                             SendMessage(listView, LVM_SETITEMPOSITION32, (IntPtr)index, pPoint);
+                            SendMessage(listView, LVM_UPDATE, (IntPtr)index, IntPtr.Zero);
 
                             Marshal.FreeHGlobal(localPt);
                             result.Repositioned++;
@@ -553,6 +577,16 @@ namespace DesktopSnap
                 }
                 CloseHandle(writeProcess);
             }
+
+            // Always refresh desktop to force redraw and apply positions
+            IntPtr desktopHwnd = FindWindow("Progman", null);
+            if (desktopHwnd != IntPtr.Zero)
+            {
+                SendMessage(desktopHwnd, 0x0111, (IntPtr)0x7103, IntPtr.Zero); // Refresh command
+            }
+            // Also notify the listview directly
+            SendMessage(listView, LVM_ARRANGE, (IntPtr)0, IntPtr.Zero); // LVA_DEFAULT (0) or LVA_SNAPTOGRID
+            InvalidateRect(listView, IntPtr.Zero, true);
 
             AppendLog($"SetIcons completion: Repositioned {result.Repositioned}, Recreated {result.Recreated}, Missing {result.MissingFiles.Count}\n");
             return result;

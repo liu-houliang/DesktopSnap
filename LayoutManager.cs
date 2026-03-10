@@ -12,6 +12,7 @@ namespace DesktopSnap
         public string Name { get; set; }
         public DateTime SavedAt { get; set; } = DateTime.Now;
         public List<IconInfo> Icons { get; set; } = new List<IconInfo>();
+        public List<DisplayInfo> CapturedDisplays { get; set; } = new List<DisplayInfo>();
         public string SavedTime => SavedAt.ToString("yyyy-MM-dd HH:mm:ss");
     }
 
@@ -114,7 +115,8 @@ namespace DesktopSnap
             {
                 Id = "auto_" + Guid.NewGuid().ToString(),
                 Name = I18n.Instance.AutoTempSave + $" ({DateTime.Now:MM-dd HH:mm})",
-                Icons = currentIcons
+                Icons = currentIcons,
+                CapturedDisplays = DisplayManager.GetDisplays()
             };
             SaveLayout(newAutoSave);
         }

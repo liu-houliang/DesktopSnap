@@ -10,6 +10,7 @@ namespace DesktopSnap
         public int Top { get; set; }
         public int Right { get; set; }
         public int Bottom { get; set; }
+        public uint Dpi { get; set; } = 96; // Default 100%
         public int Width => Right - Left;
         public int Height => Bottom - Top;
     }
@@ -18,6 +19,9 @@ namespace DesktopSnap
     {
         [DllImport("user32.dll")]
         static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, EnumMonitorsDelegate lpfnEnum, IntPtr dwData);
+
+        [DllImport("shcore.dll")]
+        static extern int GetDpiForMonitor(IntPtr hMonitor, int dpiType, out uint dpiX, out uint dpiY);
 
         delegate bool EnumMonitorsDelegate(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData);
 
@@ -37,12 +41,21 @@ namespace DesktopSnap
             // Keep the delegate rooted so GC doesn't collect it during native call
             EnumMonitorsDelegate callback = (IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData) =>
             {
+                uint dpiX = 96, dpiY = 96;
+                try
+                {
+                    // MDT_EFFECTIVE_DPI = 0
+                    GetDpiForMonitor(hMonitor, 0, out dpiX, out dpiY);
+                }
+                catch { /* Fallback to 96 if shcore.dll is missing or on older Win */ }
+
                 list.Add(new DisplayInfo
                 {
                     Left = lprcMonitor.left,
                     Top = lprcMonitor.top,
                     Right = lprcMonitor.right,
-                    Bottom = lprcMonitor.bottom
+                    Bottom = lprcMonitor.bottom,
+                    Dpi = dpiX
                 });
                 return true;
             };

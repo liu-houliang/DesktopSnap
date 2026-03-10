@@ -56,6 +56,15 @@ namespace DesktopSnap
         public string Cancel => L("Cancel");
         public string RestoringWait => L("RestoringWait");
         public string All => L("All");
+        public string ResolutionMismatchTitle => L("ResolutionMismatchTitle");
+        public string ResolutionMismatchContent => L("ResolutionMismatchContent");
+        public string ScalePos => L("ScalePos");
+        public string KeepOriginal => L("KeepOriginal");
+        public string PreviewMode => L("PreviewMode");
+        public string OriginalPosition => L("OriginalPosition");
+        public string ScalingAdaptive => L("ScalingAdaptive");
+        public string ResolutionMismatchBanner => L("ResolutionMismatchBanner");
+        public string AutoArrangeWarning => L("AutoArrangeWarning");
 
         public string L(string key)
         {
@@ -108,7 +117,16 @@ namespace DesktopSnap
                 { "Yes", "确定" },
                 { "Cancel", "取消" },
                 { "RestoringWait", "正在恢复桌面图标布局，请稍候..." },
-                { "All", "全部" }
+                { "All", "全部" },
+                { "ResolutionMismatchTitle", "显示器布局或分辨率已改变" },
+                { "ResolutionMismatchContent", "检测到当前的显示器分辨率或排列与快照保存时不一致。\n\n建议选择“按比例缩放”以尝试使图标保持在屏幕相对位置。选择“保持原坐标”可能会导致部分图标超出可见区域。" },
+                { "ScalePos", "按比例缩放" },
+                { "KeepOriginal", "保持原坐标" },
+                { "PreviewMode", "预览模式:" },
+                { "OriginalPosition", "原始像素坐标" },
+                { "ScalingAdaptive", "智能缩放适配 (推荐)" },
+                { "ResolutionMismatchBanner", "警告：检测到显示器布局分辨率与保存时不一致，部分图标可能超出屏幕。" },
+                { "AutoArrangeWarning", "提醒：检测到桌面已开启“自动排列图标”，这可能会阻止图标恢复到预想位置。请右键桌面 -> 查看 -> 取消勾选“自动排列图标”后再试。" }
             } },
             { "en", new Dictionary<string, string> {
                 { "AppTitle", "Desktop Snap v2.0" },
@@ -146,7 +164,16 @@ namespace DesktopSnap
                 { "Yes", "Yes" },
                 { "Cancel", "Cancel" },
                 { "RestoringWait", "Restoring desktop icon layout, please wait..." },
-                { "All", "All" }
+                { "All", "All" },
+                { "ResolutionMismatchTitle", "Display Layout Mismatch" },
+                { "ResolutionMismatchContent", "Detected that the current display resolution or arrangement has changed since this snapshot was taken.\n\nRecommended: choose 'Scale' to keep icons in their relative positions. Choosing 'Keep Original' may result in icons being off-screen." },
+                { "ScalePos", "Scale Proportional" },
+                { "KeepOriginal", "Keep Original" },
+                { "PreviewMode", "Preview:" },
+                { "OriginalPosition", "Original Pixels" },
+                { "ScalingAdaptive", "Smart Scaling (Recommended)" },
+                { "ResolutionMismatchBanner", "Warning: Display layout/resolution mismatch. Some icons might be off-screen." },
+                { "AutoArrangeWarning", "Note: 'Auto-arrange icons' is enabled. This may prevent manual positioning. Please right-click Desktop -> View -> uncheck 'Auto-arrange icons'." }
             } }
         };
 

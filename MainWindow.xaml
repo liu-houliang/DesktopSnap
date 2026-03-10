@@ -171,12 +171,30 @@
                             <Button Content="100%" Click="ZoomOriginalBtn_Click" 
                                     Style="{StaticResource SubtleButtonStyle}" Padding="12,4" />
                         </StackPanel>
+
+                        <!-- Preview Mode Toggle (Visible only on mismatch) -->
+                        <StackPanel x:Name="PreviewModePanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed" VerticalAlignment="Center">
+                            <TextBlock Text="{x:Bind Lang.PreviewMode, Mode=OneWay}" Foreground="#99ffffff" FontSize="12" VerticalAlignment="Center" />
+                            <ComboBox x:Name="PreviewModeCombo" SelectionChanged="PreviewModeCombo_SelectionChanged" FontSize="12" MinWidth="150">
+                                <ComboBoxItem Content="{x:Bind Lang.ScalingAdaptive, Mode=OneWay}" Tag="scale" IsSelected="True" />
+                                <ComboBoxItem Content="{x:Bind Lang.OriginalPosition, Mode=OneWay}" Tag="original" />
+                            </ComboBox>
+                        </StackPanel>
                     </StackPanel>
                 </Grid>
 
                 <!-- Preview Area -->
                 <Grid Grid.Row="1">
-                    <Border Background="#11ffffff" CornerRadius="12" BorderBrush="#22ffffff" BorderThickness="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    
+                    <InfoBar x:Name="ResolutionWarnBar" IsOpen="False" Severity="Warning" 
+                             Message="{x:Bind Lang.ResolutionMismatchBanner, Mode=OneWay}" 
+                             Margin="0,0,0,12" IsClosable="False" />
+                             
+                    <Border Grid.Row="1" Background="#11ffffff" CornerRadius="12" BorderBrush="#22ffffff" BorderThickness="1">
                         <ScrollViewer x:Name="PreviewScrollViewer" 
                                       ZoomMode="Enabled" 
                                       HorizontalScrollBarVisibility="Auto" 

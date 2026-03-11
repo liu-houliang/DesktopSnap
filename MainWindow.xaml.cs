@@ -10,6 +10,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.UI;
+using H.NotifyIcon;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace DesktopSnap
 {
@@ -27,6 +30,9 @@ namespace DesktopSnap
         private static readonly ConcurrentDictionary<string, DesktopIconCacheEntry> _iconCache = new(StringComparer.OrdinalIgnoreCase);
         private static readonly SemaphoreSlim _iconLoadSemaphore = new(20, 20); // Max 20 concurrent loads
         private int _selectedDisplayIndex = -1; // -1 for all displays
+        
+        private int _saveHotkeyId = -1;
+        private bool _hasShownTrayNotification = false;
 
         public MainWindow()
         {
@@ -39,6 +45,13 @@ namespace DesktopSnap
             var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
             var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+            
+            // Set up WndProc hook for hotkeys
+            _wndProcDelegate = CustomWndProc;
+            _oldWndProc = SetWindowLongPtr(hwnd, GWLP_WNDPROC, Marshal.GetFunctionPointerForDelegate(_wndProcDelegate));
+
+            // Register close event to minimize to tray instead
+            appWindow.Closing += AppWindow_Closing;
 
             // Use DisplayArea for physical pixels (90% of work area)
             var displayArea = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(windowId, Microsoft.UI.Windowing.DisplayAreaFallback.Primary);
@@ -64,7 +77,8 @@ namespace DesktopSnap
             // which causes system icons to not appear on first load.
             IconExtractor.InitSystemIcons();
 
-            var lang = SettingsManager.Load().Language;
+            var settings = SettingsManager.Load();
+            var lang = settings.Language;
             foreach (ComboBoxItem item in LangCombo.Items)
             {
                 if (item.Tag?.ToString() == lang)
@@ -73,9 +87,94 @@ namespace DesktopSnap
                     break;
                 }
             }
+            AutoStartCheck.IsChecked = settings.AutoStart;
+            TrayAutoStartToggle.IsChecked = settings.AutoStart;
+            
+            // Forcefully sync Registry on boot to match the default or saved setting.
+            // If the setting is 'false', this cleans out any stuck true references.
+            AutoStartManager.SetAutoStart(settings.AutoStart);
 
             LayoutManager.AutoSaveTemporary();
             RefreshLayoutsList();
+            
+            RegisterHotkeys(settings, hwnd);
+        }
+
+        private void RegisterHotkeys(AppSettings settings, IntPtr hwnd)
+        {
+            if (_saveHotkeyId != -1) HotkeyManager.Unregister(hwnd, _saveHotkeyId);
+
+            _saveHotkeyId = HotkeyManager.Register(hwnd, settings.SaveHotkey, () => 
+            {
+                var icons = DesktopIconManager.GetIcons();
+                if (icons.Count > 0)
+                {
+                    var newLayout = new DesktopLayout
+                    {
+                        Name = $"Hotkey Save {DateTime.Now:MM-dd HH:mm}",
+                        Icons = icons,
+                        CapturedDisplays = DisplayManager.GetDisplays()
+                    };
+                    LayoutManager.SaveLayout(newLayout);
+                    this.DispatcherQueue.TryEnqueue(() => 
+                    {
+                        RefreshLayoutsList();
+                        TrayIcon.ShowNotification("DesktopSnap", I18n.Instance.L("Snapshot saved via hotkey."), H.NotifyIcon.Core.NotificationIcon.Info);
+                    });
+                }
+            });
+        }
+        
+        private void AppWindow_Closing(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
+        {
+            var settings = SettingsManager.Load();
+            if (settings.CloseToTray)
+            {
+                args.Cancel = true;
+                this.Hide();
+                
+                if (!_hasShownTrayNotification)
+                {
+                    TrayIcon.ShowNotification("DesktopSnap", I18n.Instance.L("Running in background..."), H.NotifyIcon.Core.NotificationIcon.Info);
+                    _hasShownTrayNotification = true;
+                }
+            }
+        }
+
+        // --- Win32 WndProc Hooking for Hotkeys ---
+
+        private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+        private WndProcDelegate _wndProcDelegate;
+        private IntPtr _oldWndProc;
+
+        private const int GWLP_WNDPROC = -4;
+
+        [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr")]
+        private static extern IntPtr SetWindowLongPtr64(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+        [DllImport("user32.dll", EntryPoint = "SetWindowLong")]
+        private static extern IntPtr SetWindowLong32(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+        public static IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong)
+        {
+            if (IntPtr.Size == 8)
+                return SetWindowLongPtr64(hWnd, nIndex, dwNewLong);
+            else
+                return SetWindowLong32(hWnd, nIndex, dwNewLong);
+        }
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        private IntPtr CustomWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+        {
+            if (msg == HotkeyManager.WM_HOTKEY)
+            {
+                int id = wParam.ToInt32();
+                HotkeyManager.HandleMessage(id);
+            }
+
+            return CallWindowProc(_oldWndProc, hWnd, msg, wParam, lParam);
         }
 
         private void LangCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -882,6 +981,113 @@ namespace DesktopSnap
             StatusInfo.Severity = severity;
             StatusInfo.Message = message;
             StatusInfo.IsOpen = true;
+        }
+
+        // --- System Tray Actions ---
+        
+        [CommunityToolkit.Mvvm.Input.RelayCommand]
+        public void ShowWindow()
+        {
+            this.Show();
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
+            var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd));
+            appWindow.Show();
+            
+            // Bring to front mapping depending on platform could use SetForegroundWindow(hwnd)
+        }
+
+        [CommunityToolkit.Mvvm.Input.RelayCommand]
+        public void TrayShow()
+        {
+            ShowWindow();
+        }
+
+        [CommunityToolkit.Mvvm.Input.RelayCommand]
+        public void TraySave()
+        {
+            var icons = DesktopIconManager.GetIcons();
+            if (icons.Count > 0)
+            {
+                var newLayout = new DesktopLayout
+                {
+                    Name = $"Tray Save {DateTime.Now:MM-dd HH:mm}",
+                    Icons = icons,
+                    CapturedDisplays = DisplayManager.GetDisplays()
+                };
+                LayoutManager.SaveLayout(newLayout);
+                RefreshLayoutsList();
+                TrayIcon.ShowNotification("DesktopSnap", I18n.Instance.L("Snapshot saved."), H.NotifyIcon.Core.NotificationIcon.Info);
+            }
+        }
+
+        [CommunityToolkit.Mvvm.Input.RelayCommand]
+        public void TrayRestore()
+        {
+            var layouts = LayoutManager.GetAllLayouts();
+            var latest = layouts.FirstOrDefault(l => !l.Id.StartsWith("auto_") && l.Id != "temp_auto_save");
+            if (latest != null && latest.Icons.Count > 0)
+            {
+                var iconsToRestore = GetEffectiveIcons(latest);
+                Task.Run(() => DesktopIconManager.SetIcons(iconsToRestore));
+                TrayIcon.ShowNotification("DesktopSnap", I18n.Instance.L("Desktop restored."), H.NotifyIcon.Core.NotificationIcon.Info);
+            }
+            else
+            {
+                TrayIcon.ShowNotification("DesktopSnap", I18n.Instance.L("No valid snapshot found."), H.NotifyIcon.Core.NotificationIcon.Warning);
+            }
+        }
+
+        [CommunityToolkit.Mvvm.Input.RelayCommand]
+        public void TrayExit()
+        {
+            TrayIcon.Dispose();
+            Application.Current.Exit();
+        }
+
+        [CommunityToolkit.Mvvm.Input.RelayCommand]
+        public void TrayToggleAutoStart()
+        {
+            var settings = SettingsManager.Load();
+            
+            // Toggle the boolean value based on config, ignoring the UI state to avoid race conditions
+            bool newValue = !settings.AutoStart;
+            
+            settings.AutoStart = newValue;
+            SettingsManager.Save(settings);
+            AutoStartManager.SetAutoStart(newValue);
+            
+            // Force UI components to match the new truth
+            if (TrayAutoStartToggle != null) TrayAutoStartToggle.IsChecked = newValue;
+            if (AutoStartCheck != null) AutoStartCheck.IsChecked = newValue;
+        }
+        
+        private void AutoStartCheck_Changed(object sender, RoutedEventArgs e)
+        {
+            if (AutoStartCheck == null) return;
+            var settings = SettingsManager.Load();
+            bool isChecked = AutoStartCheck.IsChecked ?? false;
+            
+            if (settings.AutoStart != isChecked)
+            {
+                settings.AutoStart = isChecked;
+                SettingsManager.Save(settings);
+                AutoStartManager.SetAutoStart(isChecked);
+                
+                // Keep Tray menu UI in sync
+                if (TrayAutoStartToggle != null)
+                {
+                    TrayAutoStartToggle.IsChecked = isChecked;
+                }
+            }
+        }
+        
+        // Ensure to dispose hotkeys and tray on fully closing process later 
+        ~MainWindow()
+        {
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            if (_saveHotkeyId != -1) HotkeyManager.Unregister(hwnd, _saveHotkeyId);
+            if (_oldWndProc != IntPtr.Zero) SetWindowLongPtr(hwnd, GWLP_WNDPROC, _oldWndProc);
         }
     }
 }

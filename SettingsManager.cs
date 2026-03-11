@@ -7,6 +7,10 @@ namespace DesktopSnap
     public class AppSettings
     {
         public string Language { get; set; } = "auto";
+        public bool AutoStart { get; set; } = false;
+        public bool CloseToTray { get; set; } = true;
+        public string SaveHotkey { get; set; } = "Ctrl+Alt+S";
+        public string RestoreHotkey { get; set; } = "Ctrl+Alt+R";
     }
 
     public static class SettingsManager

@@ -65,6 +65,11 @@ namespace DesktopSnap
         public string ScalingAdaptive => L("ScalingAdaptive");
         public string ResolutionMismatchBanner => L("ResolutionMismatchBanner");
         public string AutoArrangeWarning => L("AutoArrangeWarning");
+        
+        // New strings for tray and settings
+        public string AutoStart => L("AutoStart");
+        public string Exit => L("Exit");
+        public string AppName => L("AppTitle");
 
         public string L(string key)
         {
@@ -126,7 +131,15 @@ namespace DesktopSnap
                 { "OriginalPosition", "原始像素坐标" },
                 { "ScalingAdaptive", "智能缩放适配 (推荐)" },
                 { "ResolutionMismatchBanner", "警告：检测到显示器布局分辨率与保存时不一致，部分图标可能超出屏幕。" },
-                { "AutoArrangeWarning", "提醒：检测到桌面已开启“自动排列图标”，这可能会阻止图标恢复到预想位置。请右键桌面 -> 查看 -> 取消勾选“自动排列图标”后再试。" }
+                { "AutoArrangeWarning", "提醒：检测到桌面已开启“自动排列图标”，这可能会阻止图标恢复到预想位置。请右键桌面 -> 查看 -> 取消勾选“自动排列图标”后再试。" },
+                { "AutoStart", "开机自动启动 (后台运行)" },
+                { "Exit", "完全退出" },
+                { "Snapshot saved via hotkey.", "已通过快捷键保存最新快照。" },
+                { "Latest snapshot restored via hotkey.", "已通过快捷键恢复最新快照。" },
+                { "Running in background...", "桌面快照器已最小化到系统托盘，将在后台保护您的桌面。" },
+                { "Snapshot saved.", "快照已保存。" },
+                { "Desktop restored.", "桌面已恢复。" },
+                { "No valid snapshot found.", "未找到有效的快照。" }
             } },
             { "en", new Dictionary<string, string> {
                 { "AppTitle", "Desktop Snap v2.0" },
@@ -173,7 +186,15 @@ namespace DesktopSnap
                 { "OriginalPosition", "Original Pixels" },
                 { "ScalingAdaptive", "Smart Scaling (Recommended)" },
                 { "ResolutionMismatchBanner", "Warning: Display layout/resolution mismatch. Some icons might be off-screen." },
-                { "AutoArrangeWarning", "Note: 'Auto-arrange icons' is enabled. This may prevent manual positioning. Please right-click Desktop -> View -> uncheck 'Auto-arrange icons'." }
+                { "AutoArrangeWarning", "Note: 'Auto-arrange icons' is enabled. This may prevent manual positioning. Please right-click Desktop -> View -> uncheck 'Auto-arrange icons'." },
+                { "AutoStart", "Run at startup (background)" },
+                { "Exit", "Exit" },
+                { "Snapshot saved via hotkey.", "Latest snapshot saved via hotkey." },
+                { "Latest snapshot restored via hotkey.", "Latest snapshot restored via hotkey." },
+                { "Running in background...", "DesktopSnap is minimized to the system tray and running in the background." },
+                { "Snapshot saved.", "Snapshot saved." },
+                { "Desktop restored.", "Desktop restored." },
+                { "No valid snapshot found.", "No valid snapshot found." }
             } }
         };
 

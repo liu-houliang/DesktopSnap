@@ -6,6 +6,7 @@
     xmlns:local="using:DesktopSnap"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:tb="using:H.NotifyIcon"
     mc:Ignorable="d">
 
     <Window.SystemBackdrop>
@@ -62,6 +63,32 @@
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
+        <!-- System Tray Icon Component -->
+        <tb:TaskbarIcon x:Name="TrayIcon"
+                        ToolTipText="DesktopSnap"
+                        IconSource="/Assets/app.ico"
+                        LeftClickCommand="{x:Bind ShowWindowCommand}"
+                        DoubleClickCommand="{x:Bind ShowWindowCommand}">
+            <tb:TaskbarIcon.ContextFlyout>
+                <MenuFlyout>
+                    <MenuFlyoutItem Text="{x:Bind Lang.NewSnapshot, Mode=OneWay}" Command="{x:Bind TraySaveCommand}">
+                        <MenuFlyoutItem.Icon>
+                            <FontIcon Glyph="&#xE710;" />
+                        </MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+                    <MenuFlyoutItem Text="{x:Bind Lang.Restore, Mode=OneWay}" Command="{x:Bind TrayRestoreCommand}">
+                        <MenuFlyoutItem.Icon>
+                            <FontIcon Glyph="&#xE777;" />
+                        </MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+                    <ToggleMenuFlyoutItem x:Name="TrayAutoStartToggle" Text="{x:Bind Lang.AutoStart, Mode=OneWay}" Command="{x:Bind TrayToggleAutoStartCommand}" />
+                    <MenuFlyoutSeparator />
+                    <MenuFlyoutItem Text="{x:Bind Lang.AppName, Mode=OneWay}" Command="{x:Bind TrayShowCommand}" />
+                    <MenuFlyoutItem Text="{x:Bind Lang.Exit, Mode=OneWay}" Command="{x:Bind TrayExitCommand}" />
+                </MenuFlyout>
+            </tb:TaskbarIcon.ContextFlyout>
+        </tb:TaskbarIcon>
+
         <!-- Sidebar -->
         <Border Grid.Column="0" Background="#11ffffff" BorderBrush="#11ffffff" BorderThickness="0,0,1,0">
             <Grid Padding="24,32,24,24">
@@ -86,7 +113,10 @@
                         CornerRadius="8">
                     <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
                         <FontIcon Glyph="&#xE710;" FontSize="16" Foreground="White" />
-                        <TextBlock Text="{x:Bind Lang.NewSnapshot, Mode=OneWay}" FontWeight="SemiBold" />
+                        <TextBlock>
+                            <Run Text="{x:Bind Lang.NewSnapshot, Mode=OneWay}" FontWeight="SemiBold" />
+                            <Run Text=" (Ctrl+Alt+S)" FontWeight="Normal" FontSize="12" Foreground="#E0FFFFFF" />
+                        </TextBlock>
                     </StackPanel>
                 </Button>
 
@@ -104,14 +134,19 @@
                     </ListView.ItemTemplate>
                 </ListView>
 
-                <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="12" Margin="0,24,0,0">
-                    <TextBlock Text="{x:Bind Lang.Language, Mode=OneWay}" VerticalAlignment="Center" Foreground="#99ffffff" FontSize="12" />
-                    <ComboBox x:Name="LangCombo" SelectionChanged="LangCombo_SelectionChanged" 
-                              FontSize="12" MinWidth="120" CornerRadius="4">
-                        <ComboBoxItem Content="Auto" Tag="auto" />
-                        <ComboBoxItem Content="中文" Tag="zh" />
-                        <ComboBoxItem Content="English" Tag="en" />
-                    </ComboBox>
+                <StackPanel Grid.Row="4" Orientation="Vertical" Spacing="16" Margin="0,24,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBlock Text="{x:Bind Lang.Language, Mode=OneWay}" VerticalAlignment="Center" Foreground="#99ffffff" FontSize="12" />
+                        <ComboBox x:Name="LangCombo" SelectionChanged="LangCombo_SelectionChanged" 
+                                  FontSize="12" MinWidth="120" CornerRadius="4">
+                            <ComboBoxItem Content="Auto" Tag="auto" />
+                            <ComboBoxItem Content="中文" Tag="zh" />
+                            <ComboBoxItem Content="English" Tag="en" />
+                        </ComboBox>
+                    </StackPanel>
+                    
+                    <CheckBox x:Name="AutoStartCheck" Content="{x:Bind Lang.AutoStart, Mode=OneWay}" 
+                              Foreground="#99ffffff" FontSize="12" Checked="AutoStartCheck_Changed" Unchecked="AutoStartCheck_Changed" />
                 </StackPanel>
             </Grid>
         </Border>

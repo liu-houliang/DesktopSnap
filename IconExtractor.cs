@@ -182,17 +182,19 @@ namespace DesktopSnap
             IntPtr hIcon = IntPtr.Zero;
             var shinfo = new SHFILEINFO();
 
-            // 2. File exists on disk — extract icon directly via path (works on any thread)
-            if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+            // 2. Real path on disk — extract icon directly (works on any thread)
+            bool isDir = !string.IsNullOrEmpty(filePath) && Directory.Exists(filePath);
+            if (!string.IsNullOrEmpty(filePath) && (isDir || File.Exists(filePath)))
             {
                 SHGetFileInfo(filePath, 0, ref shinfo, (uint)Marshal.SizeOf(shinfo), SHGFI_ICON | SHGFI_LARGEICON);
                 hIcon = shinfo.hIcon;
             }
 
-            // 3. Fallback: try extension-based icon if file is missing
+            // 3. Fallback: try extension/attribute-based icon if file/folder is missing
             if (hIcon == IntPtr.Zero && !string.IsNullOrEmpty(filePath))
             {
-                SHGetFileInfo(filePath, 0x80 /* FILE_ATTRIBUTE_NORMAL */, ref shinfo, (uint)Marshal.SizeOf(shinfo), SHGFI_ICON | SHGFI_LARGEICON | SHGFI_USEFILEATTRIBUTES);
+                uint attr = isDir ? 0x10u /* FILE_ATTRIBUTE_DIRECTORY */ : 0x80u /* FILE_ATTRIBUTE_NORMAL */;
+                SHGetFileInfo(filePath, attr, ref shinfo, (uint)Marshal.SizeOf(shinfo), SHGFI_ICON | SHGFI_LARGEICON | SHGFI_USEFILEATTRIBUTES);
                 hIcon = shinfo.hIcon;
             }
 

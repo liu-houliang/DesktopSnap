@@ -315,60 +315,62 @@ namespace DesktopSnap
             var iconsToDraw = GetEffectiveIcons(layout);
             if (iconsToDraw.Count == 0) return;
 
-            int minX, minY, maxX, maxY;
+            double uiScale = (this.Content?.XamlRoot?.RasterizationScale) ?? 1.0;
+
+            double minX, minY, maxX, maxY;
 
             if (_selectedDisplayIndex >= 0 && _selectedDisplayIndex < displays.Count)
             {
                 var target = displays[_selectedDisplayIndex];
-                minX = target.Left - 40;
-                minY = target.Top - 40;
-                maxX = target.Right + 40;
-                maxY = target.Bottom + 60; // Extra room for labels at bottom
+                minX = target.Left - 30;
+                minY = target.Top - 30;
+                maxX = target.Right + 30;
+                maxY = target.Bottom + 30; // Extra room for labels at bottom
             }
             else if (displays.Count > 0)
             {
-                minX = displays.Min(d => d.Left) - 40;
-                minY = displays.Min(d => d.Top) - 40;
-                maxX = displays.Max(d => d.Right) + 80;
-                maxY = displays.Max(d => d.Bottom) + 100;
+                minX = displays.Min(d => d.Left) - 30;
+                minY = displays.Min(d => d.Top) - 30;
+                maxX = displays.Max(d => d.Right) + 30;
+                maxY = displays.Max(d => d.Bottom) + 30;
             }
             else
             {
-                minX = iconsToDraw.Min(i => i.X) - 40;
-                minY = iconsToDraw.Min(i => i.Y) - 40;
-                maxX = iconsToDraw.Max(i => i.X) + 104; // 64 + 40
-                maxY = iconsToDraw.Max(i => i.Y) + 164; // 64 + 100
+                minX = (iconsToDraw.Count > 0 ? iconsToDraw.Min(i => i.X) : 0) - 140;
+                minY = (iconsToDraw.Count > 0 ? iconsToDraw.Min(i => i.Y) : 0) - 140;
+                maxX = (iconsToDraw.Count > 0 ? iconsToDraw.Max(i => i.X) : 0) + 180;
+                maxY = (iconsToDraw.Count > 0 ? iconsToDraw.Max(i => i.Y) : 0) + 240;
             }
 
-            PreviewCanvas.Width = maxX - minX;
-            PreviewCanvas.Height = maxY - minY;
+            PreviewCanvas.Width = (maxX - minX) / uiScale;
+            PreviewCanvas.Height = (maxY - minY) / uiScale;
 
             int displayIdx = 1;
             foreach (var display in displays)
             {
                 var screenRect = new Rectangle
                 {
-                    Width = display.Width,
-                    Height = display.Height,
+                    Width = display.Width / uiScale,
+                    Height = display.Height / uiScale,
                     Fill = new SolidColorBrush(Color.FromArgb(40, 20, 20, 30)), // Deeper, more premium navy
                     Stroke = new SolidColorBrush(Color.FromArgb(100, 100, 100, 150)), // Subtle blue-ish border
-                    StrokeThickness = 4
+                    StrokeThickness = 2
                 };
-                Canvas.SetLeft(screenRect, display.Left - minX);
-                Canvas.SetTop(screenRect, display.Top - minY);
+                Canvas.SetLeft(screenRect, (display.Left - minX) / uiScale);
+                Canvas.SetTop(screenRect, (display.Top - minY) / uiScale);
                 Canvas.SetZIndex(screenRect, -2); // Ensure screens are at the very back
 
                 var screenText = new TextBlock
                 {
                     Text = $"{I18n.Instance.ViewDesktop} {displayIdx}",
-                    FontSize = 120, // Slightly smaller, less overwhelming
+                    FontSize = 100 / uiScale, // Scale font size to look consistent
                     Foreground = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)), // Subtle ghost text
                     FontWeight = Microsoft.UI.Text.FontWeights.ExtraBold,
                     IsHitTestVisible = false
                 };
                 // Position text at bottom-right of each screen with some margin
-                Canvas.SetLeft(screenText, display.Left - minX + display.Width - 450);
-                Canvas.SetTop(screenText, display.Top - minY + display.Height - 180);
+                Canvas.SetLeft(screenText, (display.Left - minX + display.Width - 450) / uiScale);
+                Canvas.SetTop(screenText, (display.Top - minY + display.Height - 180) / uiScale);
                 Canvas.SetZIndex(screenText, -1); // Keep below icons but above screen background
 
                 PreviewCanvas.Children.Add(screenRect);
@@ -400,13 +402,35 @@ namespace DesktopSnap
                                   icon.FilePath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase);
                 bool isFolderLike = IsFolderIcon(icon);
 
-                var iconGrid = new Grid { Width = 32, Height = 32 };
+                bool isOriginalMode = PreviewModePanel.Visibility == Visibility.Visible && 
+                                     (PreviewModeCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "original";
+
+                double iconScale = 1.0;
+                if (isOriginalMode && layout.CapturedDisplays != null)
+                {
+                    // In Original mode, we want to show the icon at the size it was captured
+                    // Current logical size in WinUI is 1.0. To show 'capDpi' size physically,
+                    // we need logical = capDpi / currentDpi.
+                    uint capDpi = 96;
+                    var capDisp = layout.CapturedDisplays.FirstOrDefault(d => icon.X >= d.Left && icon.X < d.Right && icon.Y >= d.Top && icon.Y < d.Bottom);
+                    if (capDisp != null) capDpi = capDisp.Dpi;
+                    else if (layout.CapturedDisplays.Count > 0) capDpi = layout.CapturedDisplays[0].Dpi;
+                    
+                    iconScale = (capDpi / 96.0) / uiScale;
+                }
+                else
+                {
+                    // In standard mode, we use 1.0 logical scale, letting WinUI handle the DPI scaling
+                    iconScale = 1.0;
+                }
+
+                var iconGrid = new Grid { Width = 28, Height = 28 };
 
                 // Simple fallback: yellow folder or blue file
                 var fontIcon = new FontIcon
                 {
                     Glyph = isFolderLike ? "\uE8B7" : "\uE7C3",
-                    FontSize = 28,
+                    FontSize = 24 * iconScale,
                     Foreground = new SolidColorBrush(isFolderLike
                         ? Color.FromArgb(255, 255, 210, 80)
                         : Color.FromArgb(255, 120, 180, 255)),
@@ -461,32 +485,7 @@ namespace DesktopSnap
                     }
                 }
 
-                double displayDpi = 96;
-                bool isOriginalMode = PreviewModePanel.Visibility == Visibility.Visible && 
-                                     (PreviewModeCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "original";
-
-                // Find which display this icon belongs to in current environment to get current DPI
-                var targetDisp = displays.FirstOrDefault(d => icon.X >= d.Left && icon.X < d.Right && icon.Y >= d.Top && icon.Y < d.Bottom) ?? displays.FirstOrDefault();
-                if (targetDisp != null) displayDpi = targetDisp.Dpi;
-
-                double iconScale;
-                if (isOriginalMode && layout.CapturedDisplays != null)
-                {
-                    // In Original mode, we want to show the icon at the size it was captured
-                    // Find the captured DPI for this icon
-                    uint capDpi = 96;
-                    var capDisp = layout.CapturedDisplays.FirstOrDefault(d => icon.X >= d.Left && icon.X < d.Right && icon.Y >= d.Top && icon.Y < d.Bottom);
-                    if (capDisp != null) capDpi = capDisp.Dpi;
-                    else if (layout.CapturedDisplays.Count > 0) capDpi = layout.CapturedDisplays[0].Dpi;
-                    
-                    iconScale = capDpi / 96.0;
-                }
-                else
-                {
-                    iconScale = displayDpi / 96.0;
-                }
-
-                double iconVisualSize = 32 * iconScale;
+                double iconVisualSize = 28 * iconScale;
                 double fontSize = 11 * iconScale;
 
                 DesktopIconCacheEntry cacheEntry = null;
@@ -504,42 +503,42 @@ namespace DesktopSnap
                     _ = LoadIconAsync(img, fontIcon, loadPath, fallbackPath, icon.Name, cacheKey);
                 }
 
-                // Shortcut arrow badge (bottom-left corner)
-                if (isShortcut)
+                // Use a container for better alignment and spacing (StackPanel handles centering and vertical flow)
+                var container = new StackPanel
                 {
-                    var badge = new FontIcon
-                    {
-                        Glyph = "\uE71B", // Link arrow
-                        FontSize = 10,
-                        Foreground = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
-                        HorizontalAlignment = HorizontalAlignment.Left,
-                        VerticalAlignment = VerticalAlignment.Bottom,
-                        Margin = new Thickness(-2, 0, 0, -2)
-                    };
-                    iconGrid.Children.Add(badge);
-                }
+                    Width = 60 * iconScale,
+                    Spacing = 4 * iconScale,
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
 
-                ToolTipService.SetToolTip(iconGrid, icon.Name);
-                Canvas.SetLeft(iconGrid, icon.X - minX);
-                Canvas.SetTop(iconGrid, icon.Y - minY);
+                iconGrid.HorizontalAlignment = HorizontalAlignment.Center;
+                container.Children.Add(iconGrid);
 
                 var tb = new TextBlock
                 {
                     Text = icon.Name,
                     FontSize = fontSize,
                     Foreground = new SolidColorBrush(Color.FromArgb(255, 230, 230, 230)),
-                    Width = 72 * iconScale,
+                    Width = 60 * iconScale,
                     MaxLines = 2,
                     TextTrimming = TextTrimming.CharacterEllipsis,
                     TextAlignment = TextAlignment.Center,
-                    TextWrapping = TextWrapping.Wrap
+                    TextWrapping = TextWrapping.Wrap,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    MaxHeight = fontSize * 3.2 // Safety height to prevent vertical bleeding
                 };
-                ToolTipService.SetToolTip(tb, icon.Name);
-                Canvas.SetLeft(tb, icon.X - minX - (20 * iconScale));
-                Canvas.SetTop(tb, icon.Y - minY + (36 * iconScale));
+                container.Children.Add(tb);
 
-                PreviewCanvas.Children.Add(iconGrid);
-                PreviewCanvas.Children.Add(tb);
+                ToolTipService.SetToolTip(container, icon.Name);
+                
+                // Calculate position: We want the icon to be centered over (icon.X, icon.Y) area
+                double logicalCenterX = (icon.X - minX + 14) / uiScale;
+                double logicalTopY = (icon.Y - minY) / uiScale;
+
+                Canvas.SetLeft(container, logicalCenterX - (30 * iconScale));
+                Canvas.SetTop(container, logicalTopY);
+
+                PreviewCanvas.Children.Add(container);
             }
             
             PreviewScrollViewer.UpdateLayout();
@@ -575,8 +574,8 @@ namespace DesktopSnap
                 double sh = PreviewScrollViewer.ActualHeight;
                 if (sw == 0 || sh == 0) return;
 
-                double fitWidth = sw / (PreviewCanvas.Width + 40);
-                double fitHeight = sh / (PreviewCanvas.Height + 40);
+                double fitWidth = sw / (PreviewCanvas.Width + 120);
+                double fitHeight = sh / (PreviewCanvas.Height + 120);
                 float zoom = (float)Math.Min(fitWidth, fitHeight);
                 if (zoom <= 0) zoom = 0.15f;
                 // Leave a little margin and max limit to 1.0 for very small screen captures

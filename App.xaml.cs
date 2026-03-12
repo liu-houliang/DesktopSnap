@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Data;
@@ -42,9 +42,20 @@ namespace DesktopSnap
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
             m_window = new MainWindow();
-            m_window.Activate();
+
+            // Check if launched with --silent (e.g. auto-start on boot)
+            // If so, keep the window hidden and let it run in the system tray.
+            string[] cmdArgs = Environment.GetCommandLineArgs();
+            bool isSilent = cmdArgs.Any(a => a.Equals("--silent", StringComparison.OrdinalIgnoreCase));
+
+            if (!isSilent)
+            {
+                m_window.Activate();
+            }
+            // When silent, MainWindow is created (tray icon is initialized) but not shown.
         }
 
         private Window m_window;
     }
 }
+

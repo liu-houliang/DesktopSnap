@@ -15,6 +15,7 @@
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <PublishTrimmed>false</PublishTrimmed>
+    <Version>1.0.0</Version>
     <SatelliteResourceLanguages>en-US;zh-Hans</SatelliteResourceLanguages>
   </PropertyGroup>
 

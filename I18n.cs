@@ -29,7 +29,8 @@ namespace DesktopSnap
             CurrentLanguage = (systemLang == "zh") ? "zh" : "en";
         }
 
-        public string AppTitle => L("AppTitle");
+        public string AppVersion => System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
+        public string AppTitle => $"{L("AppTitle")} v{AppVersion}";
         public string NewSnapshot => L("NewSnapshot");
         public string JumpToDesktop => L("JumpToDesktop");
         public string Zoom => L("Zoom");
@@ -87,7 +88,7 @@ namespace DesktopSnap
         private static readonly Dictionary<string, Dictionary<string, string>> Translations = new()
         {
             { "zh", new Dictionary<string, string> {
-                { "AppTitle", "桌面布局快照器 v2.0" },
+                { "AppTitle", "桌面布局快照器" },
                 { "NewSnapshot", "新建桌面快照" },
                 { "JumpToDesktop", "跳至桌面:" },
                 { "Zoom", "缩放:" },
@@ -142,7 +143,7 @@ namespace DesktopSnap
                 { "No valid snapshot found.", "未找到有效的快照。" }
             } },
             { "en", new Dictionary<string, string> {
-                { "AppTitle", "Desktop Snap v2.0" },
+                { "AppTitle", "Desktop Snap" },
                 { "NewSnapshot", "New Snapshot" },
                 { "JumpToDesktop", "Jump to Display:" },
                 { "Zoom", "Zoom:" },

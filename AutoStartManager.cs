@@ -40,9 +40,12 @@ namespace DesktopSnap
                     {
                         if (enable)
                         {
-                            // Important: enclose path in quotes to handle spaces
-                            string exePath = Process.GetCurrentProcess().MainModule.FileName;
-                            key.SetValue(AppName, $"\"{exePath}\"");
+                            // Use Environment.ProcessPath (reliable in .NET 6+) instead of
+                            // Process.GetCurrentProcess().MainModule.FileName which can
+                            // return the dotnet host path in some scenarios.
+                            string exePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule.FileName;
+                            // Enclose path in quotes to handle spaces; add --silent for tray-only startup
+                            key.SetValue(AppName, $"\"{exePath}\" --silent");
                         }
                         else
                         {

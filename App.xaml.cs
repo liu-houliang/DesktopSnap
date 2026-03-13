@@ -41,21 +41,26 @@ namespace DesktopSnap
         /// <param name="args">Details about the launch request and process.</param>
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
-            m_window = new MainWindow();
+            // Set working directory to the app's base directory to ensure relative paths work.
+            // This is important when launched from Registry as Auto-Start.
+            Directory.SetCurrentDirectory(AppContext.BaseDirectory);
 
             // Check if launched with --silent (e.g. auto-start on boot)
-            // If so, keep the window hidden and let it run in the system tray.
             string[] cmdArgs = Environment.GetCommandLineArgs();
             bool isSilent = cmdArgs.Any(a => a.Equals("--silent", StringComparison.OrdinalIgnoreCase));
 
-            if (!isSilent)
+            m_window = new MainWindow(isSilentStart: isSilent);
+
+            // Always activate so the HWND message-loop and tray icon are fully initialized.
+            // When silent, MainWindow has already parked itself at -32000,-32000 (off-screen),
+            // so Activate() is invisible. We then immediately hide via AppWindow.
+            m_window.Activate();
+            if (isSilent)
             {
-                m_window.Activate();
+                m_window.Hide(); // AppWindow.Hide() — removes from taskbar, keeps tray icon alive
             }
-            // When silent, MainWindow is created (tray icon is initialized) but not shown.
         }
 
         private Window m_window;
     }
 }
-

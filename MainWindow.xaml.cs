@@ -34,7 +34,7 @@ namespace DesktopSnap
         private int _saveHotkeyId = -1;
         private bool _hasShownTrayNotification = false;
 
-        public MainWindow()
+        public MainWindow(bool isSilentStart = false)
         {
             SettingsManager.ApplySettings();
             this.InitializeComponent();
@@ -45,7 +45,7 @@ namespace DesktopSnap
             var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
             var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
-            
+
             // Set up WndProc hook for hotkeys
             _wndProcDelegate = CustomWndProc;
             _oldWndProc = SetWindowLongPtr(hwnd, GWLP_WNDPROC, Marshal.GetFunctionPointerForDelegate(_wndProcDelegate));
@@ -68,7 +68,17 @@ namespace DesktopSnap
             // Precise physical centering
             int x = (physWidth - width) / 2 + displayArea.WorkArea.X;
             int y = (physHeight - height) / 2 + displayArea.WorkArea.Y;
-            appWindow.MoveAndResize(new Windows.Graphics.RectInt32(x, y, width, height));
+
+            // Silent-start: position the window far off-screen so Activate() is invisible.
+            // MoveAndResize is the LAST positioning call, so this won't be overridden.
+            if (isSilentStart)
+            {
+                appWindow.MoveAndResize(new Windows.Graphics.RectInt32(-32000, -32000, width, height));
+            }
+            else
+            {
+                appWindow.MoveAndResize(new Windows.Graphics.RectInt32(x, y, width, height));
+            }
             
             try { appWindow.SetIcon("Assets\\app.ico"); } catch { }
 
@@ -165,6 +175,10 @@ namespace DesktopSnap
 
         [DllImport("user32.dll")]
         private static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
 
         private IntPtr CustomWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
         {
@@ -987,13 +1001,25 @@ namespace DesktopSnap
         [CommunityToolkit.Mvvm.Input.RelayCommand]
         public void ShowWindow()
         {
-            this.Show();
             var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-            Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
-            var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd));
+            var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
+            var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+
+            // Re-center the window if it was parked off-screen (e.g. after --silent start)
+            if (appWindow.Position.X <= -32000 || appWindow.Position.Y <= -32000)
+            {
+                var displayArea = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(windowId, Microsoft.UI.Windowing.DisplayAreaFallback.Primary);
+                int physWidth = displayArea.WorkArea.Width;
+                int physHeight = displayArea.WorkArea.Height;
+                int w = appWindow.Size.Width;
+                int h = appWindow.Size.Height;
+                int x = (physWidth - w) / 2 + displayArea.WorkArea.X;
+                int y = (physHeight - h) / 2 + displayArea.WorkArea.Y;
+                appWindow.Move(new Windows.Graphics.PointInt32(x, y));
+            }
+
+            this.Show();
             appWindow.Show();
-            
-            // Bring to front mapping depending on platform could use SetForegroundWindow(hwnd)
         }
 
         [CommunityToolkit.Mvvm.Input.RelayCommand]

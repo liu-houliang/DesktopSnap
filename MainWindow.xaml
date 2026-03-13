@@ -65,7 +65,7 @@
 
         <!-- System Tray Icon Component -->
         <tb:TaskbarIcon x:Name="TrayIcon"
-                        ToolTipText="DesktopSnap"
+                        ToolTipText="{x:Bind Lang.AppName, Mode=OneWay}"
                         IconSource="/Assets/app.ico"
                         LeftClickCommand="{x:Bind ShowWindowCommand}"
                         DoubleClickCommand="{x:Bind ShowWindowCommand}">

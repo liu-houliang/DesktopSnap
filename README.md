@@ -29,7 +29,14 @@
 
 ### Prerequisites
 - Windows 10 version 1809 (build 17763) or later.
-- .NET 8.0 SDK or later.
+- **x64 system only**.
+- .NET 8.0 SDK or later (only required for building from source).
+
+## 📦 Installation
+
+1. Download the latest release package from the [Releases](../../releases/latest) page.
+2. Extract the ZIP file to your preferred location.
+3. Run `DesktopSnap.exe` to start the application.
 
 ## 🔨 Build
 

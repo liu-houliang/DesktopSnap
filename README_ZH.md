@@ -1,5 +1,11 @@
 # 桌面布局快照器 (DesktopSnap)
 
+简体中文 | [English](README.md)
+
+<p align="center">
+  <img src="screenshots/preview.jpg" alt="界面截图" width="800">
+</p>
+
 **桌面布局快照器** 是一款轻量且强大的 Windows 桌面图标布局管理工具。它可以为您记录下桌面图标的“快照”，并能在任何时候瞬间恢复。对于使用多显示器、频繁切换分辨率的用户，或者在退出全屏游戏后发现桌面图标乱掉的玩家来说，这是一款必备神器。
 
 ## 🌟 功能特色
@@ -43,6 +49,10 @@ dotnet publish -f net8.0-windows10.0.19041.0 -c Release -r win-x64 --self-contai
 
 程序会自动检测系统语言（支持中英文）。您也可以在设置菜单中手动切换语言。
 
+## 🌐 联系我
+
+- **个人博客**: [liuhouliang.com/post/desktop-snap](https://liuhouliang.com/post/desktop-snap/)
+
 ## 📄 许可协议
 
-本项目采用 MIT 许可证。
+本项目采用 [MIT 许可证](LICENSE)。

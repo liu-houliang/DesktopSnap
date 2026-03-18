@@ -1,5 +1,11 @@
 # DesktopSnap
 
+[简体中文](README_ZH.md) | English
+
+<p align="center">
+  <img src="screenshots/preview-en.jpg" alt="DesktopSnap" width="800">
+</p>
+
 **DesktopSnap** is a lightweight, powerful desktop icon layout management tool for Windows. It allows you to take "snapshots" of your desktop icon positions and restore them instantly, which is especially useful for users with multiple monitors, those who frequently change resolutions, or gamers whose icons get scrambled after exiting full-screen applications.
 
 ## 🌟 Features
@@ -43,6 +49,10 @@ dotnet publish -f net8.0-windows10.0.19041.0 -c Release -r win-x64 --self-contai
 
 The application automatically detects your system language (supports English and Chinese). You can also manually switch languages in the settings menu.
 
+## 🌐 Contact Me
+
+- **Blog**: [liuhouliang.com/post/desktop-snap](https://liuhouliang.com/en/post/desktop-snap/)
+
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the [MIT License](LICENSE).

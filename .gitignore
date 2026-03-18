@@ -1,4 +1,4 @@
-    ## [Visual Studio 官方推荐配置]
+## [Visual Studio 官方推荐配置]
 *.swp
 *.*~
 抛弃型文件
@@ -32,3 +32,13 @@ Desktop.ini
 ## [AI助手]
 .qoder/
 .agent/
+
+## [项目本地及其生成文件]
+/Config/
+/x64/
+/x86/
+/Release/
+/Debug/
+*.msi
+*.msix
+*.appx

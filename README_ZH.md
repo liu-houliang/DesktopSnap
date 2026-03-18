@@ -1,4 +1,4 @@
-# 桌面布局快照器 (DesktopSnap)
+# 桌面布局快照器 (DesktopSnap) [![CodeQL](https://github.com/liu-houliang/DesktopSnap/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/liu-houliang/DesktopSnap/actions/workflows/github-code-scanning/codeql)  [![Security - VirusTotal](https://img.shields.io/badge/VirusTotal-Clean-brightgreen?style=flat-square&logo=virustotal)](https://www.virustotal.com/gui/file-analysis/ZDg5YWM3NDAzYzUxYWI1MDJjMWQ3NDRiYjA0MzRlM2E6MTc3MzgyMTkxNQ==)
 
 简体中文 | [English](README.md)
 

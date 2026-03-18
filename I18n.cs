@@ -88,7 +88,7 @@ namespace DesktopSnap
         private static readonly Dictionary<string, Dictionary<string, string>> Translations = new()
         {
             { "zh", new Dictionary<string, string> {
-                { "AppTitle", "桌面布局快照器" },
+                { "AppTitle", "桌面定格" },
                 { "NewSnapshot", "新建桌面快照" },
                 { "JumpToDesktop", "跳至桌面:" },
                 { "Zoom", "缩放:" },

@@ -1,4 +1,4 @@
-# 桌面布局快照器 (DesktopSnap) [![CodeQL](https://github.com/liu-houliang/DesktopSnap/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/liu-houliang/DesktopSnap/actions/workflows/github-code-scanning/codeql)  [![Security - VirusTotal](https://img.shields.io/badge/VirusTotal-Clean-brightgreen?style=flat-square&logo=virustotal)](https://www.virustotal.com/gui/file-analysis/ZDg5YWM3NDAzYzUxYWI1MDJjMWQ3NDRiYjA0MzRlM2E6MTc3MzgyMTkxNQ==)
+# 桌面定格 (DesktopSnap) [![CodeQL](https://github.com/liu-houliang/DesktopSnap/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/liu-houliang/DesktopSnap/actions/workflows/github-code-scanning/codeql)  [![Security - VirusTotal](https://img.shields.io/badge/VirusTotal-Clean-brightgreen?style=flat-square&logo=virustotal)](https://www.virustotal.com/gui/file-analysis/ZDg5YWM3NDAzYzUxYWI1MDJjMWQ3NDRiYjA0MzRlM2E6MTc3MzgyMTkxNQ==)
 
 简体中文 | [English](README.md)
 
@@ -6,7 +6,7 @@
   <img src="screenshots/preview.jpg" alt="界面截图" width="800">
 </p>
 
-**桌面布局快照器** 是一款轻量且强大的 Windows 桌面图标布局管理工具。它可以为您记录下桌面图标的“快照”，并能在任何时候瞬间恢复。对于使用多显示器、频繁切换分辨率的用户，或者在退出全屏游戏后发现桌面图标乱掉的玩家来说，这是一款必备神器。
+**桌面定格** 是一款轻量且强大的 Windows 桌面图标布局管理工具。它可以为您记录下桌面图标的“快照”，并能在任何时候瞬间恢复。对于使用多显示器、频繁切换分辨率的用户，或者在退出全屏游戏后发现桌面图标乱掉的玩家来说，这是一款必备神器。
 
 ## 🌟 功能特色
 

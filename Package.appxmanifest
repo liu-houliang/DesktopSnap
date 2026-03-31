@@ -8,15 +8,15 @@
   IgnorableNamespaces="uap rescap">
 
   <Identity
-    Name="5a843542-1154-4c57-a84e-0efd182ff825"
-    Publisher="CN=admin"
+    Name="LiuHouliang.DesktopSnap"
+    Publisher="CN=88A13951-9E90-4EF1-887E-60DA4E709FEA"
     Version="1.0.0.0" />
 
-  <mp:PhoneIdentity PhoneProductId="5a843542-1154-4c57-a84e-0efd182ff825" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
+  <mp:PhoneIdentity PhoneProductId="52553812-af1b-4d5d-88f4-e98b3f18a108" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
     <DisplayName>DesktopSnap</DisplayName>
-    <PublisherDisplayName>admin</PublisherDisplayName>
+    <PublisherDisplayName>Liu Houliang</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
@@ -26,7 +26,8 @@
   </Dependencies>
 
   <Resources>
-    <Resource Language="x-generate"/>
+    <Resource Language="en-US"/>
+    <Resource Language="zh-Hans"/>
   </Resources>
 
   <Applications>
@@ -35,11 +36,16 @@
       EntryPoint="$targetentrypoint$">
       <uap:VisualElements
         DisplayName="DesktopSnap"
-        Description="DesktopSnap"
+        Description="Protect and restore your desktop icon layouts. Perfect for multi-monitor setups."
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png">
-        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" ShortName="DesktopSnap" Square71x71Logo="Assets\SmallTile.png" Square310x310Logo="Assets\LargeTile.png">
+          <uap:ShowNameOnTiles>
+            <uap:ShowOn Tile="square150x150Logo" />
+            <uap:ShowOn Tile="wide310x150Logo" />
+          </uap:ShowNameOnTiles>
+        </uap:DefaultTile>
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
       </uap:VisualElements>
     </Application>

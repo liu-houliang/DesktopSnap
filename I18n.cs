@@ -71,6 +71,18 @@ namespace DesktopSnap
         public string AutoStart => L("AutoStart");
         public string Exit => L("Exit");
         public string AppName => L("AppTitle");
+        public string WelcomeTitle => L("WelcomeTitle");
+        public string WelcomeMessage => L("WelcomeMessage");
+        public string Step1Title => L("Step1Title");
+        public string Step1Description => L("Step1Description");
+        public string Step2Title => L("Step2Title");
+        public string Step2Description => L("Step2Description");
+        public string Step3Title => L("Step3Title");
+        public string Step3Description => L("Step3Description");
+        public string Step4Title => L("Step4Title");
+        public string Step4Description => L("Step4Description");
+        public string TryNewSnapshot => L("TryNewSnapshot");
+        public string GetStarted => L("GetStarted");
 
         public string L(string key)
         {
@@ -140,7 +152,19 @@ namespace DesktopSnap
                 { "Running in background...", "桌面快照器已最小化到系统托盘，将在后台保护您的桌面。" },
                 { "Snapshot saved.", "快照已保存。" },
                 { "Desktop restored.", "桌面已恢复。" },
-                { "No valid snapshot found.", "未找到有效的快照。" }
+                { "No valid snapshot found.", "未找到有效的快照。" },
+                { "WelcomeTitle", "欢迎开启桌面定格之旅" },
+                { "WelcomeMessage", "我们将为您简单介绍一下这款高效的桌面图标整理工具。" },
+                { "Step1Title", "📷 捕捉布局" },
+                { "Step1Description", "整理好您的桌面图标后，点击左侧边栏的“新建快照”或使用快捷键 Ctrl+Alt+S 来定格当前位置。" },
+                { "Step2Title", "🔄 一键还原" },
+                { "Step2Description", "当图标变乱时，只需选中一个快照并点击“还原”按钮，即使连接了新显示器，图标也会各归各位。" },
+                { "Step3Title", "🖥️ 实时预览" },
+                { "Step3Description", "无需实际还原，即可在应用内预览不同显示器上的图标布局状态。" },
+                { "Step4Title", "🚀 开机守护" },
+                { "Step4Description", "支持开机自启并最小化到系统托盘，始终在后台默默保护您的桌面成果。" },
+                { "TryNewSnapshot", "快点击“新建桌面快照”试试吧！" },
+                { "GetStarted", "开始体验" }
             } },
             { "en", new Dictionary<string, string> {
                 { "AppTitle", "Desktop Snap" },
@@ -195,7 +219,19 @@ namespace DesktopSnap
                 { "Running in background...", "DesktopSnap is minimized to the system tray and running in the background." },
                 { "Snapshot saved.", "Snapshot saved." },
                 { "Desktop restored.", "Desktop restored." },
-                { "No valid snapshot found.", "No valid snapshot found." }
+                { "No valid snapshot found.", "No valid snapshot found." },
+                { "WelcomeTitle", "Welcome to DesktopSnap" },
+                { "WelcomeMessage", "Let's take a quick look at how to manage your desktop icons with ease." },
+                { "Step1Title", "📷 Capture Layout" },
+                { "Step1Description", "Organize your icons as you like, then click 'New Snapshot' or use Ctrl+Alt+S to freeze their positions." },
+                { "Step2Title", "🔄 Quick Restore" },
+                { "Step2Description", "When icons get messy, select a snapshot and click 'Restore'. Even with new displays, they go back to where they belong." },
+                { "Step3Title", "🖥️ Desktop Preview" },
+                { "Step3Description", "Preview your icon layouts for different displays directly within the app without applying changes." },
+                { "Step4Title", "🚀 Auto Protection" },
+                { "Step4Description", "Runs at startup and stays in the system tray, protecting your desktop layouts in the background." },
+                { "TryNewSnapshot", "Try clicking 'New Snapshot' now!" },
+                { "GetStarted", "Get Started" }
             } }
         };
 

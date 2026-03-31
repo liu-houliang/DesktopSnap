@@ -108,6 +108,30 @@ namespace DesktopSnap
             RefreshLayoutsList();
             
             RegisterHotkeys(settings, hwnd);
+            
+            if (!isSilentStart)
+            {
+                CheckFirstRun();
+            }
+        }
+
+        private async void CheckFirstRun()
+        {
+            var settings = SettingsManager.Load();
+            if (settings.IsFirstRun)
+            {
+                // Give a small delay to ensure the window is rendered
+                await Task.Delay(500);
+                WelcomeDialog.XamlRoot = this.Content.XamlRoot;
+                await WelcomeDialog.ShowAsync();
+            }
+        }
+
+        private void WelcomeDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
+        {
+            var settings = SettingsManager.Load();
+            settings.IsFirstRun = false;
+            SettingsManager.Save(settings);
         }
 
         private void RegisterHotkeys(AppSettings settings, IntPtr hwnd)

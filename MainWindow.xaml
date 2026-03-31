@@ -104,7 +104,7 @@
                            FontSize="24" FontWeight="Bold" 
                            Margin="0,0,0,24" Foreground="White" />
                 
-                <Button Grid.Row="1" 
+                <Button Grid.Row="1" x:Name="NewLayoutBtn"
                         Click="NewLayoutBtn_Click" 
                         HorizontalAlignment="Stretch" 
                         Padding="0,12" Margin="0,0,0,24"
@@ -285,5 +285,72 @@
                 <TextBlock Text="{x:Bind Lang.NoSelection, Mode=OneWay}" FontSize="18" />
             </StackPanel>
         </Grid>
+
+        <ContentDialog x:Name="WelcomeDialog"
+                       Title="{x:Bind Lang.WelcomeTitle, Mode=OneWay}"
+                       PrimaryButtonText="{x:Bind Lang.GetStarted, Mode=OneWay}"
+                       PrimaryButtonClick="WelcomeDialog_PrimaryButtonClick"
+                       DefaultButton="Primary"
+                       CornerRadius="12"
+                       RequestedTheme="Dark">
+            <StackPanel Spacing="24" Margin="0,12,0,0" Width="420">
+                <TextBlock Text="{x:Bind Lang.WelcomeMessage, Mode=OneWay}" 
+                           TextWrapping="Wrap" FontSize="15" Opacity="0.8" />
+                
+                <Line X1="0" X2="420" Stroke="#22ffffff" StrokeThickness="1" />
+
+                <Grid ColumnSpacing="20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE722;" FontSize="28" Foreground="{ThemeResource SystemAccentColor}" VerticalAlignment="Top" />
+                    <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock Text="{x:Bind Lang.Step1Title, Mode=OneWay}" FontWeight="SemiBold" FontSize="16" />
+                        <TextBlock Text="{x:Bind Lang.Step1Description, Mode=OneWay}" TextWrapping="Wrap" FontSize="14" Opacity="0.7" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid ColumnSpacing="20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE777;" FontSize="28" Foreground="{ThemeResource SystemAccentColor}" VerticalAlignment="Top" />
+                    <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock Text="{x:Bind Lang.Step2Title, Mode=OneWay}" FontWeight="SemiBold" FontSize="16" />
+                        <TextBlock Text="{x:Bind Lang.Step2Description, Mode=OneWay}" TextWrapping="Wrap" FontSize="14" Opacity="0.7" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid ColumnSpacing="20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE8B7;" FontSize="28" Foreground="{ThemeResource SystemAccentColor}" VerticalAlignment="Top" />
+                    <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock Text="{x:Bind Lang.Step3Title, Mode=OneWay}" FontWeight="SemiBold" FontSize="16" />
+                        <TextBlock Text="{x:Bind Lang.Step3Description, Mode=OneWay}" TextWrapping="Wrap" FontSize="14" Opacity="0.7" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid ColumnSpacing="20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xEB4D;" FontSize="28" Foreground="{ThemeResource SystemAccentColor}" VerticalAlignment="Top" />
+                    <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock Text="{x:Bind Lang.Step4Title, Mode=OneWay}" FontWeight="SemiBold" FontSize="16" />
+                        <TextBlock Text="{x:Bind Lang.Step4Description, Mode=OneWay}" TextWrapping="Wrap" FontSize="14" Opacity="0.7" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="{x:Bind Lang.TryNewSnapshot, Mode=OneWay}" 
+                           FontSize="16" FontWeight="Bold" Foreground="{ThemeResource SystemAccentColor}"
+                           HorizontalAlignment="Center" Margin="0,10,0,0" />
+            </StackPanel>
+        </ContentDialog>
     </Grid>
 </Window>

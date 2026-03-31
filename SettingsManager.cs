@@ -11,6 +11,7 @@ namespace DesktopSnap
         public bool CloseToTray { get; set; } = true;
         public string SaveHotkey { get; set; } = "Ctrl+Alt+S";
         public string RestoreHotkey { get; set; } = "Ctrl+Alt+R";
+        public bool IsFirstRun { get; set; } = true;
     }
 
     public static class SettingsManager
@@ -19,8 +20,23 @@ namespace DesktopSnap
 
         static SettingsManager()
         {
-            string appData = AppContext.BaseDirectory;
-            _settingsFile = Path.Combine(appData, "Config", "settings.json");
+            _settingsFile = Path.Combine(AppEnv.GetDataDirectory(), "settings.json");
+            
+            // If running in Packaged mode, check if we need to migrate from a local portable 'Config' folder
+            if (AppEnv.IsPackaged)
+            {
+                string portableDir = Path.Combine(AppContext.BaseDirectory, "Config", "settings.json");
+                if (File.Exists(portableDir) && !File.Exists(_settingsFile))
+                {
+                    try
+                    {
+                        var dir = Path.GetDirectoryName(_settingsFile);
+                        if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                        File.Copy(portableDir, _settingsFile);
+                    }
+                    catch { }
+                }
+            }
         }
 
         public static AppSettings Load()
@@ -40,7 +56,7 @@ namespace DesktopSnap
             {
                 Directory.CreateDirectory(dir);
             }
-            File.WriteAllText(_settingsFile, JsonSerializer.Serialize(settings));
+            File.WriteAllText(_settingsFile, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
         }
 
         public static void ApplySettings()

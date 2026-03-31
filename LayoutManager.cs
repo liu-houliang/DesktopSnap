@@ -22,9 +22,30 @@ namespace DesktopSnap
 
         static LayoutManager()
         {
-            string appData = AppContext.BaseDirectory;
-            _layoutsDirectory = Path.Combine(appData, "Config", "Layouts");
-            Directory.CreateDirectory(_layoutsDirectory);
+            _layoutsDirectory = Path.Combine(AppEnv.GetDataDirectory(), "Layouts");
+            
+            // Migrate old layouts if we're now in Packaged mode
+            if (AppEnv.IsPackaged)
+            {
+                string oldLayoutsDir = Path.Combine(AppContext.BaseDirectory, "Config", "Layouts");
+                if (Directory.Exists(oldLayoutsDir))
+                {
+                    try
+                    {
+                        if (!Directory.Exists(_layoutsDirectory)) Directory.CreateDirectory(_layoutsDirectory);
+                        
+                        var files = Directory.GetFiles(oldLayoutsDir, "*.json");
+                        foreach (var file in files)
+                        {
+                            string destFile = Path.Combine(_layoutsDirectory, Path.GetFileName(file));
+                            if (!File.Exists(destFile)) File.Copy(file, destFile);
+                        }
+                    }
+                    catch { }
+                }
+            }
+            
+            if (!Directory.Exists(_layoutsDirectory)) Directory.CreateDirectory(_layoutsDirectory);
         }
 
         public static List<DesktopLayout> GetAllLayouts()

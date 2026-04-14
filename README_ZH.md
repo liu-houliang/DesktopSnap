@@ -1,4 +1,4 @@
-# 桌面定格 (DesktopSnap) [![CodeQL](https://github.com/liu-houliang/DesktopSnap/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/liu-houliang/DesktopSnap/actions/workflows/github-code-scanning/codeql)  [![Security - VirusTotal](https://img.shields.io/badge/VirusTotal-Clean-brightgreen?style=flat-square&logo=virustotal)](https://www.virustotal.com/gui/file-analysis/ZDg5YWM3NDAzYzUxYWI1MDJjMWQ3NDRiYjA0MzRlM2E6MTc3MzgyMTkxNQ==)
+# 桌面定格 (DesktopSnap) [![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-Get%20it-blue?style=flat-square&logo=microsoft)](https://www.microsoft.com/store/apps/9N88RJ6D0JS3) [![CodeQL](https://github.com/liu-houliang/DesktopSnap/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/liu-houliang/DesktopSnap/actions/workflows/github-code-scanning/codeql)  [![Security - VirusTotal](https://img.shields.io/badge/VirusTotal-Clean-brightgreen?style=flat-square&logo=virustotal)](https://www.virustotal.com/gui/file-analysis/ZDg5YWM3NDAzYzUxYWI1MDJjMWQ3NDRiYjA0MzRlM2E6MTc3MzgyMTkxNQ==)
 
 简体中文 | [English](README.md)
 
@@ -34,6 +34,14 @@
 
 ## 📦 安装方式
 
+### 1. 微软商店 (推荐)
+直接从微软商店下载，支持自动后台更新和更安全的安装体验。
+
+<a href="https://apps.microsoft.com/detail/9n88rj6d0js3?hl=zh-CN">
+  <img src="https://get.microsoft.com/images/zh-cn%20dark.svg" width="160"/>
+</a>
+
+### 2. 便携版 (GitHub Releases)
 1. 从 [Releases](../../releases/latest) 页面下载最新版本的安装包。
 2. 将 ZIP 文件解压到您喜欢的位置。
 3. 运行 `DesktopSnap.exe` 即可启动程序。

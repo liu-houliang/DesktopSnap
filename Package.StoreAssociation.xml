@@ -364,6 +364,8 @@
     <MainPackageIdentityName>LiuHouliang.DesktopSnap</MainPackageIdentityName>
     <ReservedNames>
       <ReservedName>DesktopSnap</ReservedName>
+      <ReservedName>DesktopSnap - Desktop Icon Layout Manager</ReservedName>
+      <ReservedName>DesktopSnap - 桌面图标布局备份</ReservedName>
     </ReservedNames>
   </ProductReservedInfo>
   <AccountPackageIdentityNames />

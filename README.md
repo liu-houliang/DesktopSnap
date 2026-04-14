@@ -1,4 +1,4 @@
-# DesktopSnap [![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-Get%20it-blue?style=flat-square&logo=microsoft)](https://www.microsoft.com/store/apps/9N88RJ6D0JS3) [![CodeQL](https://github.com/liu-houliang/DesktopSnap/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/liu-houliang/DesktopSnap/actions/workflows/github-code-scanning/codeql)  [![Security - VirusTotal](https://img.shields.io/badge/VirusTotal-Clean-brightgreen?style=flat-square&logo=virustotal)](https://www.virustotal.com/gui/file-analysis/ZDg5YWM3NDAzYzUxYWI1MDJjMWQ3NDRiYjA0MzRlM2E6MTc3MzgyMTkxNQ==)
+# DesktopSnap [![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-Get%20it-blue?style=flat-square&logo=microsoft)](https://apps.microsoft.com/detail/9n88rj6d0js3?hl=en-US) [![CodeQL](https://github.com/liu-houliang/DesktopSnap/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/liu-houliang/DesktopSnap/actions/workflows/github-code-scanning/codeql)  [![Security - VirusTotal](https://img.shields.io/badge/VirusTotal-Clean-brightgreen?style=flat-square&logo=virustotal)](https://www.virustotal.com/gui/file-analysis/ZDg5YWM3NDAzYzUxYWI1MDJjMWQ3NDRiYjA0MzRlM2E6MTc3MzgyMTkxNQ==)
 
 [简体中文](README_ZH.md) | English
 
@@ -37,7 +37,7 @@
 ### 1. Microsoft Store (Recommended)
 Download directly from the Microsoft Store for automatic updates and a more secure installation experience.
 
-<a href="https://apps.microsoft.com/detail/9n88rj6d0js3?hl=en-gb">
+<a href="https://apps.microsoft.com/detail/9n88rj6d0js3?hl=en-US">
   <img src="https://get.microsoft.com/images/en-us%20dark.svg" width="160"/>
 </a>
 

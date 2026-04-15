@@ -134,6 +134,17 @@ namespace DesktopSnap
             SettingsManager.Save(settings);
         }
 
+        private async void AboutBtn_Click(object sender, RoutedEventArgs e)
+        {
+            // Set language-aware URLs at open time so they reflect current language selection
+            HomepageLink.NavigateUri = new Uri(Lang.HomepageUrl);
+            WebsiteLink.NavigateUri = new Uri(Lang.WebsiteUrl);
+            GitHubLink.NavigateUri = new Uri(Lang.GitHubUrl);
+
+            AboutDialog.XamlRoot = this.Content.XamlRoot;
+            await AboutDialog.ShowAsync();
+        }
+
         private void RegisterHotkeys(AppSettings settings, IntPtr hwnd)
         {
             if (_saveHotkeyId != -1) HotkeyManager.Unregister(hwnd, _saveHotkeyId);
@@ -1116,19 +1127,19 @@ namespace DesktopSnap
             if (TrayAutoStartToggle != null) TrayAutoStartToggle.IsChecked = newValue;
             if (AutoStartCheck != null) AutoStartCheck.IsChecked = newValue;
         }
-        
+
         private void AutoStartCheck_Changed(object sender, RoutedEventArgs e)
         {
             if (AutoStartCheck == null) return;
             var settings = SettingsManager.Load();
             bool isChecked = AutoStartCheck.IsChecked ?? false;
-            
+
             if (settings.AutoStart != isChecked)
             {
                 settings.AutoStart = isChecked;
                 SettingsManager.Save(settings);
                 AutoStartManager.SetAutoStart(isChecked);
-                
+
                 // Keep Tray menu UI in sync
                 if (TrayAutoStartToggle != null)
                 {

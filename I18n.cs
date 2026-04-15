@@ -55,6 +55,7 @@ namespace DesktopSnap
         public string ConfirmRestoreContent => L("ConfirmRestoreContent");
         public string Yes => L("Yes");
         public string Cancel => L("Cancel");
+        public string Close => L("Close");
         public string RestoringWait => L("RestoringWait");
         public string All => L("All");
         public string ResolutionMismatchTitle => L("ResolutionMismatchTitle");
@@ -83,6 +84,23 @@ namespace DesktopSnap
         public string Step4Description => L("Step4Description");
         public string TryNewSnapshot => L("TryNewSnapshot");
         public string GetStarted => L("GetStarted");
+
+        // About dialog
+        public string About => L("About");
+        public string AboutTitle => L("AboutTitle");
+        public string AboutTagline => L("AboutTagline");
+        public string AboutDescription => L("AboutDescription");
+        public string AboutHomepage => L("AboutHomepage");
+        public string AboutWebsite => L("AboutWebsite");
+        public string AboutVersionLabel => L("AboutVersionLabel");
+        public string AboutGitHub => L("AboutGitHub");
+        public string AboutChangelogTitle => L("AboutChangelogTitle");
+        public string AboutChangelog => L("AboutChangelog");
+
+        // Language-aware link URLs
+        public string HomepageUrl => _currentLanguage == "zh" ? "https://liuhouliang.com" : "https://liuhouliang.com/en";
+        public string WebsiteUrl => _currentLanguage == "zh" ? "https://desktopsnap.liuhouliang.com" : "https://desktopsnap.liuhouliang.com/en";
+        public string GitHubUrl => "https://github.com/liu-houliang/DesktopSnap";
 
         public string L(string key)
         {
@@ -134,6 +152,7 @@ namespace DesktopSnap
                 { "ConfirmRestoreContent", "确定要将桌面图标恢复到此快照的状态吗？\n当前桌面上未保存的位置变动将会丢失。" },
                 { "Yes", "确定" },
                 { "Cancel", "取消" },
+                { "Close", "关闭" },
                 { "RestoringWait", "正在恢复桌面图标布局，请稍候..." },
                 { "All", "全部" },
                 { "ResolutionMismatchTitle", "显示器布局或分辨率已改变" },
@@ -164,7 +183,17 @@ namespace DesktopSnap
                 { "Step4Title", "🚀 开机守护" },
                 { "Step4Description", "支持开机自启并最小化到系统托盘，始终在后台默默保护您的桌面成果。" },
                 { "TryNewSnapshot", "快点击“新建桌面快照”试试吧！" },
-                { "GetStarted", "开始体验" }
+                { "GetStarted", "开始体验" },
+                { "About", "关于" },
+                { "AboutTitle", "关于桌面定格" },
+                { "AboutTagline", "让你的桌面布局，永远如初" },
+                { "AboutDescription", "连接新显示器、调整分辨率或重启后，有时桌面图标会被打乱位置。\n\n使用桌面定格，一键保存当前图标布局，随时完整还原，让桌面始终如你所设。" },
+                { "AboutHomepage", "作者主页" },
+                { "AboutWebsite", "软件主页" },
+                { "AboutVersionLabel", "版本" },
+                { "AboutGitHub", "GitHub 源代码" },
+                { "AboutChangelogTitle", "本版更新内容" },
+                { "AboutChangelog", "• 修复多显示器切换后快照错误提示分辨率变更的问题\n• 提升图标复位内存安全性，防止极端情况下 Explorer 崩溃\n• 显示器顺序现在按物理位置统一排序" }
             } },
             { "en", new Dictionary<string, string> {
                 { "AppTitle", "Desktop Snap" },
@@ -201,6 +230,7 @@ namespace DesktopSnap
                 { "ConfirmRestoreContent", "Are you sure you want to restore your desktop icons to this snapshot?\nUnsaved position changes on your current desktop will be lost." },
                 { "Yes", "Yes" },
                 { "Cancel", "Cancel" },
+                { "Close", "Close" },
                 { "RestoringWait", "Restoring desktop icon layout, please wait..." },
                 { "All", "All" },
                 { "ResolutionMismatchTitle", "Display Layout Mismatch" },
@@ -231,7 +261,17 @@ namespace DesktopSnap
                 { "Step4Title", "🚀 Auto Protection" },
                 { "Step4Description", "Runs at startup and stays in the system tray, protecting your desktop layouts in the background." },
                 { "TryNewSnapshot", "Try clicking 'New Snapshot' now!" },
-                { "GetStarted", "Get Started" }
+                { "GetStarted", "Get Started" },
+                { "About", "About" },
+                { "AboutTitle", "About Desktop Snap" },
+                { "AboutTagline", "Your desktop, always exactly where you left it." },
+                { "AboutDescription", "Desktop Snap solves an everyday frustration: every time you switch displays, change resolution, or restart, your carefully arranged icons shuffle into chaos.\n\nWith Desktop Snap, save your icon layout with one click and restore it perfectly — anytime." },
+                { "AboutHomepage", "Author Homepage" },
+                { "AboutWebsite", "Official Website" },
+                { "AboutVersionLabel", "Version" },
+                { "AboutGitHub", "Source Code on GitHub" },
+                { "AboutChangelogTitle", "What's New" },
+                { "AboutChangelog", "\u2022 Fixed false resolution-change warning when display enumeration order changes\n\u2022 Improved icon restore memory safety to prevent Explorer crashes\n\u2022 Displays now sorted left-to-right for consistent Desktop 1/2/3 labels" }
             } }
         };
 

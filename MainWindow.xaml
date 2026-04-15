@@ -136,7 +136,7 @@
 
                 <StackPanel Grid.Row="4" Orientation="Vertical" Spacing="16" Margin="0,24,0,0">
                     <StackPanel Orientation="Horizontal" Spacing="12">
-                        <TextBlock Text="{x:Bind Lang.Language, Mode=OneWay}" VerticalAlignment="Center" Foreground="#99ffffff" FontSize="12" />
+                        <TextBlock Text="{x:Bind Lang.Language, Mode=OneWay}" VerticalAlignment="Center" Foreground="#99ffffff" FontSize="12" Width="100" />
                         <ComboBox x:Name="LangCombo" SelectionChanged="LangCombo_SelectionChanged" 
                                   FontSize="12" MinWidth="120" CornerRadius="4">
                             <ComboBoxItem Content="Auto" Tag="auto" />
@@ -145,8 +145,13 @@
                         </ComboBox>
                     </StackPanel>
                     
-                    <CheckBox x:Name="AutoStartCheck" Content="{x:Bind Lang.AutoStart, Mode=OneWay}" 
-                              Foreground="#99ffffff" FontSize="12" Checked="AutoStartCheck_Changed" Unchecked="AutoStartCheck_Changed" />
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBlock Text="{x:Bind Lang.AutoStart, Mode=OneWay}" VerticalAlignment="Center" Foreground="#99ffffff" FontSize="12" Width="100" />
+                        <ToggleSwitch x:Name="AutoStartToggle" 
+                                      OffContent="" OnContent=""
+                                      Toggled="AutoStartToggle_Toggled"
+                                      MinWidth="120" />
+                    </StackPanel>
 
                     <Button x:Name="AboutBtn" Click="AboutBtn_Click"
                             HorizontalAlignment="Stretch" Padding="0,8"

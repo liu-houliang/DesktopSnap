@@ -32,7 +32,6 @@ namespace DesktopSnap
         private int _selectedDisplayIndex = -1; // -1 for all displays
         
         private int _saveHotkeyId = -1;
-        private bool _hasShownTrayNotification = false;
 
         public MainWindow(bool isSilentStart = false)
         {
@@ -97,7 +96,7 @@ namespace DesktopSnap
                     break;
                 }
             }
-            AutoStartCheck.IsChecked = settings.AutoStart;
+            AutoStartToggle.IsOn = settings.AutoStart;
             TrayAutoStartToggle.IsChecked = settings.AutoStart;
             
             // Forcefully sync Registry on boot to match the default or saved setting.
@@ -178,10 +177,11 @@ namespace DesktopSnap
                 args.Cancel = true;
                 this.Hide();
                 
-                if (!_hasShownTrayNotification)
+                if (!settings.HasShownTrayNotification)
                 {
                     TrayIcon.ShowNotification("DesktopSnap", I18n.Instance.L("Running in background..."), H.NotifyIcon.Core.NotificationIcon.Info);
-                    _hasShownTrayNotification = true;
+                    settings.HasShownTrayNotification = true;
+                    SettingsManager.Save(settings);
                 }
             }
         }
@@ -1125,25 +1125,25 @@ namespace DesktopSnap
             
             // Force UI components to match the new truth
             if (TrayAutoStartToggle != null) TrayAutoStartToggle.IsChecked = newValue;
-            if (AutoStartCheck != null) AutoStartCheck.IsChecked = newValue;
+            if (AutoStartToggle != null) AutoStartToggle.IsOn = newValue;
         }
 
-        private void AutoStartCheck_Changed(object sender, RoutedEventArgs e)
+        private void AutoStartToggle_Toggled(object sender, RoutedEventArgs e)
         {
-            if (AutoStartCheck == null) return;
+            if (AutoStartToggle == null) return;
             var settings = SettingsManager.Load();
-            bool isChecked = AutoStartCheck.IsChecked ?? false;
+            bool isOn = AutoStartToggle.IsOn;
 
-            if (settings.AutoStart != isChecked)
+            if (settings.AutoStart != isOn)
             {
-                settings.AutoStart = isChecked;
+                settings.AutoStart = isOn;
                 SettingsManager.Save(settings);
-                AutoStartManager.SetAutoStart(isChecked);
+                AutoStartManager.SetAutoStart(isOn);
 
                 // Keep Tray menu UI in sync
                 if (TrayAutoStartToggle != null)
                 {
-                    TrayAutoStartToggle.IsChecked = isChecked;
+                    TrayAutoStartToggle.IsChecked = isOn;
                 }
             }
         }

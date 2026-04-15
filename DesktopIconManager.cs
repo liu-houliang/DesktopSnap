@@ -223,69 +223,86 @@ namespace DesktopSnap
             uint itemSize = (uint)Marshal.SizeOf(typeof(LVITEMW));
             uint stringBufSize = 512;
 
-            IntPtr pPointStr = VirtualAllocEx(process, IntPtr.Zero, pointSize + itemSize + stringBufSize, MEM_COMMIT, PAGE_READWRITE);
-            if (pPointStr == IntPtr.Zero)
+            IntPtr pPointStr = IntPtr.Zero;
+            try
             {
-                int err = Marshal.GetLastWin32Error();
-                AppendLog($"Error: VirtualAllocEx failed with code {err}\n");
-                CloseHandle(process);
-                return icons;
-            }
-
-            IntPtr ptAddress = pPointStr;
-            IntPtr itemAddress = pPointStr + (int)pointSize;
-            IntPtr strAddress = pPointStr + (int)pointSize + (int)itemSize;
-
-            for (int i = 0; i < count; i++)
-            {
-                // Position
-                SendMessage(listView, LVM_GETITEMPOSITION, (IntPtr)i, ptAddress);
-                int pointStructSize = Marshal.SizeOf(typeof(POINT));
-                IntPtr localPt = Marshal.AllocHGlobal(pointStructSize);
-                ReadProcessMemory(process, ptAddress, localPt, pointStructSize, out _);
-                POINT pt = Marshal.PtrToStructure<POINT>(localPt);
-                Marshal.FreeHGlobal(localPt);
-
-                // Text (Architecture safe struct injection)
-                byte[] itemBytes;
-                int itemStructSize;
-
-                if (Environment.Is64BitOperatingSystem)
-                {
-                    itemStructSize = 88;
-                    itemBytes = new byte[88];
-                    BitConverter.GetBytes(strAddress.ToInt64()).CopyTo(itemBytes, 24); // pszText
-                    BitConverter.GetBytes(255).CopyTo(itemBytes, 32); // cchTextMax
-                }
-                else
-                {
-                    itemStructSize = 60;
-                    itemBytes = new byte[60];
-                    BitConverter.GetBytes(strAddress.ToInt32()).CopyTo(itemBytes, 20); // pszText
-                    BitConverter.GetBytes(255).CopyTo(itemBytes, 24); // cchTextMax
-                }
-
-                IntPtr localItem = Marshal.AllocHGlobal(itemStructSize);
-                Marshal.Copy(itemBytes, 0, localItem, itemStructSize);
-
-                WriteProcessMemory(process, itemAddress, localItem, itemStructSize, out _);
-                SendMessage(listView, LVM_GETITEMTEXTW, (IntPtr)i, itemAddress);
-
-                IntPtr localStr = Marshal.AllocHGlobal((int)stringBufSize);
-                ReadProcessMemory(process, strAddress, localStr, (int)stringBufSize, out _);
-                string name = Marshal.PtrToStringUni(localStr);
+                pPointStr = VirtualAllocEx(process, IntPtr.Zero, pointSize + itemSize + stringBufSize, MEM_COMMIT, PAGE_READWRITE);
                 
-                Marshal.FreeHGlobal(localStr);
-                Marshal.FreeHGlobal(localItem);
-
-                if (!string.IsNullOrEmpty(name))
+                // Safety: if allocation fails, abort cleanly rather than computing addresses from IntPtr.Zero
+                if (pPointStr == IntPtr.Zero)
                 {
-                    icons.Add(new IconInfo { Name = name, X = pt.x, Y = pt.y });
+                    int err = Marshal.GetLastWin32Error();
+                    AppendLog($"Error: VirtualAllocEx failed with code {err}\n");
+                    return icons;
+                }
+
+                IntPtr ptAddress = pPointStr;
+                IntPtr itemAddress = pPointStr + (int)pointSize;
+                IntPtr strAddress = pPointStr + (int)pointSize + (int)itemSize;
+
+                for (int i = 0; i < count; i++)
+                {
+                    // Position
+                    SendMessage(listView, LVM_GETITEMPOSITION, (IntPtr)i, ptAddress);
+                    int pointStructSize = Marshal.SizeOf(typeof(POINT));
+                    IntPtr localPt = Marshal.AllocHGlobal(pointStructSize);
+                    POINT pt;
+                    try
+                    {
+                        ReadProcessMemory(process, ptAddress, localPt, pointStructSize, out _);
+                        pt = Marshal.PtrToStructure<POINT>(localPt);
+                    }
+                    finally { Marshal.FreeHGlobal(localPt); }
+
+                    // Text (Architecture safe struct injection)
+                    byte[] itemBytes;
+                    int itemStructSize;
+
+                    if (Environment.Is64BitOperatingSystem)
+                    {
+                        itemStructSize = 88;
+                        itemBytes = new byte[88];
+                        BitConverter.GetBytes(strAddress.ToInt64()).CopyTo(itemBytes, 24); // pszText
+                        BitConverter.GetBytes(255).CopyTo(itemBytes, 32); // cchTextMax
+                    }
+                    else
+                    {
+                        itemStructSize = 60;
+                        itemBytes = new byte[60];
+                        BitConverter.GetBytes(strAddress.ToInt32()).CopyTo(itemBytes, 20); // pszText
+                        BitConverter.GetBytes(255).CopyTo(itemBytes, 24); // cchTextMax
+                    }
+
+                    IntPtr localItem = Marshal.AllocHGlobal(itemStructSize);
+                    try
+                    {
+                        Marshal.Copy(itemBytes, 0, localItem, itemStructSize);
+                        WriteProcessMemory(process, itemAddress, localItem, itemStructSize, out _);
+                        SendMessage(listView, LVM_GETITEMTEXTW, (IntPtr)i, itemAddress);
+                    }
+                    finally { Marshal.FreeHGlobal(localItem); }
+
+                    IntPtr localStr = Marshal.AllocHGlobal((int)stringBufSize);
+                    string name;
+                    try
+                    {
+                        ReadProcessMemory(process, strAddress, localStr, (int)stringBufSize, out _);
+                        name = Marshal.PtrToStringUni(localStr);
+                    }
+                    finally { Marshal.FreeHGlobal(localStr); }
+
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        icons.Add(new IconInfo { Name = name, X = pt.x, Y = pt.y });
+                    }
                 }
             }
-
-            VirtualFreeEx(process, pPointStr, 0, MEM_RELEASE);
-            CloseHandle(process);
+            finally
+            {
+                // Always release remote memory and process handle, even on exception
+                if (pPointStr != IntPtr.Zero) VirtualFreeEx(process, pPointStr, 0, MEM_RELEASE);
+                CloseHandle(process);
+            }
 
             AppendLog($"GetIcons completion: Valid names retrieved: {icons.Count}\n");
 
@@ -502,90 +519,114 @@ namespace DesktopSnap
             uint itemSize = (uint)Marshal.SizeOf(typeof(LVITEMW));
             uint stringBufSize = 512;
 
-            IntPtr pBuf = VirtualAllocEx(process, IntPtr.Zero, itemSize + stringBufSize, MEM_COMMIT, PAGE_READWRITE);
-            IntPtr itemAddress = pBuf;
-            IntPtr strAddress = pBuf + (int)itemSize;
-
-            for (int i = 0; i < count; i++)
+            IntPtr pBuf = IntPtr.Zero;
+            try
             {
-                byte[] itemBytes;
-                int itemStructSize;
-
-                if (Environment.Is64BitOperatingSystem)
+                pBuf = VirtualAllocEx(process, IntPtr.Zero, itemSize + stringBufSize, MEM_COMMIT, PAGE_READWRITE);
+                
+                // Safety: if we can't allocate memory in Explorer, abort cleanly rather than
+                // writing to address 0 (pBuf + offset) which could crash Explorer.
+                if (pBuf == IntPtr.Zero)
                 {
-                    itemStructSize = 88;
-                    itemBytes = new byte[88];
-                    BitConverter.GetBytes(strAddress.ToInt64()).CopyTo(itemBytes, 24);
-                    BitConverter.GetBytes(255).CopyTo(itemBytes, 32);
-                }
-                else
-                {
-                    itemStructSize = 60;
-                    itemBytes = new byte[60];
-                    BitConverter.GetBytes(strAddress.ToInt32()).CopyTo(itemBytes, 20);
-                    BitConverter.GetBytes(255).CopyTo(itemBytes, 24);
+                    AppendLog($"Error (Set Phase 3): VirtualAllocEx failed with code {Marshal.GetLastWin32Error()}\n");
+                    return result;
                 }
 
-                IntPtr localItem = Marshal.AllocHGlobal(itemStructSize);
-                Marshal.Copy(itemBytes, 0, localItem, itemStructSize);
+                IntPtr itemAddress = pBuf;
+                IntPtr strAddress = pBuf + (int)itemSize;
 
-                WriteProcessMemory(process, itemAddress, localItem, itemStructSize, out _);
-                SendMessage(listView, LVM_GETITEMTEXTW, (IntPtr)i, itemAddress);
-
-                IntPtr localStr = Marshal.AllocHGlobal((int)stringBufSize);
-                ReadProcessMemory(process, strAddress, localStr, (int)stringBufSize, out _);
-                string name = Marshal.PtrToStringUni(localStr);
-
-                Marshal.FreeHGlobal(localStr);
-                Marshal.FreeHGlobal(localItem);
-
-                if (!string.IsNullOrEmpty(name))
+                for (int i = 0; i < count; i++)
                 {
-                    currentIcons[name] = i;
+                    byte[] itemBytes;
+                    int itemStructSize;
+
+                    if (Environment.Is64BitOperatingSystem)
+                    {
+                        itemStructSize = 88;
+                        itemBytes = new byte[88];
+                        BitConverter.GetBytes(strAddress.ToInt64()).CopyTo(itemBytes, 24);
+                        BitConverter.GetBytes(255).CopyTo(itemBytes, 32);
+                    }
+                    else
+                    {
+                        itemStructSize = 60;
+                        itemBytes = new byte[60];
+                        BitConverter.GetBytes(strAddress.ToInt32()).CopyTo(itemBytes, 20);
+                        BitConverter.GetBytes(255).CopyTo(itemBytes, 24);
+                    }
+
+                    IntPtr localItem = Marshal.AllocHGlobal(itemStructSize);
+                    try
+                    {
+                        Marshal.Copy(itemBytes, 0, localItem, itemStructSize);
+                        WriteProcessMemory(process, itemAddress, localItem, itemStructSize, out _);
+                        SendMessage(listView, LVM_GETITEMTEXTW, (IntPtr)i, itemAddress);
+                    }
+                    finally { Marshal.FreeHGlobal(localItem); }
+
+                    IntPtr localStr = Marshal.AllocHGlobal((int)stringBufSize);
+                    string name;
+                    try
+                    {
+                        ReadProcessMemory(process, strAddress, localStr, (int)stringBufSize, out _);
+                        name = Marshal.PtrToStringUni(localStr);
+                    }
+                    finally { Marshal.FreeHGlobal(localStr); }
+
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        currentIcons[name] = i;
+                    }
                 }
             }
+            finally
+            {
+                // Always free remote memory and close the handle, even if an exception occurs.
+                if (pBuf != IntPtr.Zero) VirtualFreeEx(process, pBuf, 0, MEM_RELEASE);
+                CloseHandle(process);
+            }
 
-            VirtualFreeEx(process, pBuf, 0, MEM_RELEASE);
-            CloseHandle(process);
-
-            // Position icons
+            // ===== PHASE 4: Write icon positions =====
             IntPtr writeProcess = OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_WRITE | PROCESS_VM_READ, false, pid);
             if (writeProcess != IntPtr.Zero)
             {
-                IntPtr pPoint = VirtualAllocEx(writeProcess, IntPtr.Zero, (uint)Marshal.SizeOf(typeof(POINT)), MEM_COMMIT, PAGE_READWRITE);
-
-                if (pPoint != IntPtr.Zero)
+                IntPtr pPoint = IntPtr.Zero;
+                try
                 {
-                    foreach (var icon in icons)
+                    pPoint = VirtualAllocEx(writeProcess, IntPtr.Zero, (uint)Marshal.SizeOf(typeof(POINT)), MEM_COMMIT, PAGE_READWRITE);
+                    if (pPoint != IntPtr.Zero)
                     {
-                        if (currentIcons.TryGetValue(icon.Name, out int index))
+                        foreach (var icon in icons)
                         {
-                            POINT pt = new POINT { x = icon.X, y = icon.Y };
-                            int pointSize = Marshal.SizeOf(typeof(POINT));
-                            IntPtr localPt = Marshal.AllocHGlobal(pointSize);
-                            Marshal.StructureToPtr(pt, localPt, false);
-
-                            WriteProcessMemory(writeProcess, pPoint, localPt, pointSize, out _);
-                            SendMessage(listView, LVM_SETITEMPOSITION32, (IntPtr)index, pPoint);
-                            SendMessage(listView, LVM_UPDATE, (IntPtr)index, IntPtr.Zero);
-
-                            Marshal.FreeHGlobal(localPt);
-                            result.Repositioned++;
+                            if (currentIcons.TryGetValue(icon.Name, out int index))
+                            {
+                                POINT pt = new POINT { x = icon.X, y = icon.Y };
+                                int pointSize = Marshal.SizeOf(typeof(POINT));
+                                IntPtr localPt = Marshal.AllocHGlobal(pointSize);
+                                try
+                                {
+                                    Marshal.StructureToPtr(pt, localPt, false);
+                                    WriteProcessMemory(writeProcess, pPoint, localPt, pointSize, out _);
+                                    SendMessage(listView, LVM_SETITEMPOSITION32, (IntPtr)index, pPoint);
+                                    SendMessage(listView, LVM_UPDATE, (IntPtr)index, IntPtr.Zero);
+                                    result.Repositioned++;
+                                }
+                                finally { Marshal.FreeHGlobal(localPt); }
+                            }
                         }
                     }
-                    VirtualFreeEx(writeProcess, pPoint, 0, MEM_RELEASE);
                 }
-                CloseHandle(writeProcess);
+                finally
+                {
+                    if (pPoint != IntPtr.Zero) VirtualFreeEx(writeProcess, pPoint, 0, MEM_RELEASE);
+                    CloseHandle(writeProcess);
+                }
             }
 
-            // Always refresh desktop to force redraw and apply positions
-            IntPtr desktopHwnd = FindWindow("Progman", null);
-            if (desktopHwnd != IntPtr.Zero)
-            {
-                SendMessage(desktopHwnd, 0x0111, (IntPtr)0x7103, IntPtr.Zero); // Refresh command
-            }
-            // Also notify the listview directly
-            SendMessage(listView, LVM_ARRANGE, (IntPtr)0, IntPtr.Zero); // LVA_DEFAULT (0) or LVA_SNAPTOGRID
+            // Repaint the desktop without triggering a full Explorer re-sort.
+            // NOTE: We intentionally avoid LVM_ARRANGE(LVA_DEFAULT=0) here because on some
+            // Windows versions it acts as LVA_SNAPTOGRID and moves ALL icons, overriding
+            // the positions we just set and potentially causing icons to visually "stack" or disappear.
             InvalidateRect(listView, IntPtr.Zero, true);
 
             AppendLog($"SetIcons completion: Repositioned {result.Repositioned}, Recreated {result.Recreated}, Missing {result.MissingFiles.Count}\n");
@@ -605,50 +646,61 @@ namespace DesktopSnap
             uint itemSize = (uint)Marshal.SizeOf(typeof(LVITEMW));
             uint stringBufSize = 512;
 
-            IntPtr pBuf = VirtualAllocEx(process, IntPtr.Zero, itemSize + stringBufSize, MEM_COMMIT, PAGE_READWRITE);
-            if (pBuf == IntPtr.Zero) { CloseHandle(process); return names; }
-
-            IntPtr itemAddr = pBuf;
-            IntPtr strAddr = pBuf + (int)itemSize;
-
-            for (int i = 0; i < count; i++)
+            IntPtr pBuf = IntPtr.Zero;
+            try
             {
-                byte[] itemBytes;
-                int itemStructSize;
+                pBuf = VirtualAllocEx(process, IntPtr.Zero, itemSize + stringBufSize, MEM_COMMIT, PAGE_READWRITE);
+                if (pBuf == IntPtr.Zero) return names;
 
-                if (Environment.Is64BitOperatingSystem)
+                IntPtr itemAddr = pBuf;
+                IntPtr strAddr = pBuf + (int)itemSize;
+
+                for (int i = 0; i < count; i++)
                 {
-                    itemStructSize = 88;
-                    itemBytes = new byte[88];
-                    BitConverter.GetBytes(strAddr.ToInt64()).CopyTo(itemBytes, 24);
-                    BitConverter.GetBytes(255).CopyTo(itemBytes, 32);
+                    byte[] itemBytes;
+                    int itemStructSize;
+
+                    if (Environment.Is64BitOperatingSystem)
+                    {
+                        itemStructSize = 88;
+                        itemBytes = new byte[88];
+                        BitConverter.GetBytes(strAddr.ToInt64()).CopyTo(itemBytes, 24);
+                        BitConverter.GetBytes(255).CopyTo(itemBytes, 32);
+                    }
+                    else
+                    {
+                        itemStructSize = 60;
+                        itemBytes = new byte[60];
+                        BitConverter.GetBytes(strAddr.ToInt32()).CopyTo(itemBytes, 20);
+                        BitConverter.GetBytes(255).CopyTo(itemBytes, 24);
+                    }
+
+                    IntPtr localItem = Marshal.AllocHGlobal(itemStructSize);
+                    try
+                    {
+                        Marshal.Copy(itemBytes, 0, localItem, itemStructSize);
+                        WriteProcessMemory(process, itemAddr, localItem, itemStructSize, out _);
+                        SendMessage(listView, LVM_GETITEMTEXTW, (IntPtr)i, itemAddr);
+                    }
+                    finally { Marshal.FreeHGlobal(localItem); }
+
+                    IntPtr localStr = Marshal.AllocHGlobal((int)stringBufSize);
+                    string name;
+                    try
+                    {
+                        ReadProcessMemory(process, strAddr, localStr, (int)stringBufSize, out _);
+                        name = Marshal.PtrToStringUni(localStr);
+                    }
+                    finally { Marshal.FreeHGlobal(localStr); }
+
+                    if (!string.IsNullOrEmpty(name)) names.Add(name);
                 }
-                else
-                {
-                    itemStructSize = 60;
-                    itemBytes = new byte[60];
-                    BitConverter.GetBytes(strAddr.ToInt32()).CopyTo(itemBytes, 20);
-                    BitConverter.GetBytes(255).CopyTo(itemBytes, 24);
-                }
-
-                IntPtr localItem = Marshal.AllocHGlobal(itemStructSize);
-                Marshal.Copy(itemBytes, 0, localItem, itemStructSize);
-
-                WriteProcessMemory(process, itemAddr, localItem, itemStructSize, out _);
-                SendMessage(listView, LVM_GETITEMTEXTW, (IntPtr)i, itemAddr);
-
-                IntPtr localStr = Marshal.AllocHGlobal((int)stringBufSize);
-                ReadProcessMemory(process, strAddr, localStr, (int)stringBufSize, out _);
-                string name = Marshal.PtrToStringUni(localStr);
-
-                Marshal.FreeHGlobal(localStr);
-                Marshal.FreeHGlobal(localItem);
-
-                if (!string.IsNullOrEmpty(name)) names.Add(name);
             }
-
-            VirtualFreeEx(process, pBuf, 0, MEM_RELEASE);
-            CloseHandle(process);
+            finally
+            {
+                if (pBuf != IntPtr.Zero) VirtualFreeEx(process, pBuf, 0, MEM_RELEASE);
+                CloseHandle(process);
+            }
             return names;
         }
     }

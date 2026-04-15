@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace DesktopSnap
@@ -87,7 +88,11 @@ namespace DesktopSnap
             EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, callback, IntPtr.Zero);
             
             GC.KeepAlive(callback); // Ensure it survives the native call
-            return list;
+            
+            // Sort left-to-right, then top-to-bottom so the order is always deterministic
+            // regardless of the non-guaranteed enumeration order from Windows.
+            // This makes UI labels (Desktop 1, 2...) consistently match physical position.
+            return list.OrderBy(d => d.Left).ThenBy(d => d.Top).ToList();
         }
     }
 }

@@ -291,10 +291,16 @@ namespace DesktopSnap
                         for (int i = 0; i < currentDisplays.Count; i++)
                         {
                             var cur = currentDisplays[i];
-                            var cap = layout.CapturedDisplays[i];
+                            
+                            // Try to find a display in the backup that matches this one's name
+                            var cap = layout.CapturedDisplays.FirstOrDefault(d => !string.IsNullOrEmpty(d.DeviceName) && d.DeviceName == cur.DeviceName);
+                            
+                            // Fallback to index if name match fails (e.g. for older snapshots or renamed displays)
+                            if (cap == null) cap = layout.CapturedDisplays[i];
+
                             if (cur.Width != cap.Width || 
                                 cur.Height != cap.Height ||
-                                (cap.Dpi > 0 && cur.Dpi != cap.Dpi)) // Only check if snapshot has DPI info
+                                (cap.Dpi > 0 && cur.Dpi != cap.Dpi))
                             {
                                 mismatched = true;
                                 break;

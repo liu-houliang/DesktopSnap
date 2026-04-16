@@ -71,16 +71,8 @@
                         DoubleClickCommand="{x:Bind ShowWindowCommand}">
             <tb:TaskbarIcon.ContextFlyout>
                 <MenuFlyout>
-                    <MenuFlyoutItem Text="{x:Bind Lang.NewSnapshot, Mode=OneWay}" Command="{x:Bind TraySaveCommand}">
-                        <MenuFlyoutItem.Icon>
-                            <FontIcon Glyph="&#xE710;" />
-                        </MenuFlyoutItem.Icon>
-                    </MenuFlyoutItem>
-                    <MenuFlyoutItem Text="{x:Bind Lang.Restore, Mode=OneWay}" Command="{x:Bind TrayRestoreCommand}">
-                        <MenuFlyoutItem.Icon>
-                            <FontIcon Glyph="&#xE777;" />
-                        </MenuFlyoutItem.Icon>
-                    </MenuFlyoutItem>
+                    <MenuFlyoutItem Text="{x:Bind Lang.NewSnapshot, Mode=OneWay}" Command="{x:Bind TraySaveCommand}" />
+                    <MenuFlyoutItem Text="{x:Bind Lang.Restore, Mode=OneWay}" Command="{x:Bind TrayRestoreCommand}" />
                     <ToggleMenuFlyoutItem x:Name="TrayAutoStartToggle" Text="{x:Bind Lang.AutoStart, Mode=OneWay}" Command="{x:Bind TrayToggleAutoStartCommand}" />
                     <MenuFlyoutSeparator />
                     <MenuFlyoutItem Text="{x:Bind Lang.AppName, Mode=OneWay}" Command="{x:Bind TrayShowCommand}" />

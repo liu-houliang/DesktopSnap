@@ -13,11 +13,21 @@ using Windows.UI;
 using H.NotifyIcon;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Microsoft.Windows.AppNotifications;
+using Microsoft.Windows.AppNotifications.Builder;
 
 namespace DesktopSnap
 {
     public sealed partial class MainWindow : Window
     {
+        public static MainWindow Instance { get; private set; }
+
+        [DllImport("uxtheme.dll", EntryPoint = "#135", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern int SetPreferredAppMode(int preferredAppMode);
+
+        [DllImport("uxtheme.dll", EntryPoint = "#136", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern void FlushMenuThemes();
+
         public I18n Lang => I18n.Instance;
 
         // Icon thumbnail cache: file path -> DesktopIconCacheEntry
@@ -35,6 +45,12 @@ namespace DesktopSnap
 
         public MainWindow(bool isSilentStart = false)
         {
+            Instance = this;
+            try {
+                SetPreferredAppMode(2); // 2 = ForceDark
+                FlushMenuThemes();
+            } catch { }
+
             SettingsManager.ApplySettings();
             this.InitializeComponent();
 
@@ -163,7 +179,7 @@ namespace DesktopSnap
                     this.DispatcherQueue.TryEnqueue(() => 
                     {
                         RefreshLayoutsList();
-                        TrayIcon.ShowNotification("DesktopSnap", I18n.Instance.L("Snapshot saved via hotkey."), H.NotifyIcon.Core.NotificationIcon.Info);
+                        ShowToast(I18n.Instance.L("Snapshot saved via hotkey."));
                     });
                 }
             });
@@ -179,7 +195,7 @@ namespace DesktopSnap
                 
                 if (!settings.HasShownTrayNotification)
                 {
-                    TrayIcon.ShowNotification("DesktopSnap", I18n.Instance.L("Running in background..."), H.NotifyIcon.Core.NotificationIcon.Info);
+                    ShowToast(I18n.Instance.L("Running in background..."));
                     settings.HasShownTrayNotification = true;
                     SettingsManager.Save(settings);
                 }
@@ -1083,7 +1099,7 @@ namespace DesktopSnap
                 };
                 LayoutManager.SaveLayout(newLayout);
                 RefreshLayoutsList();
-                TrayIcon.ShowNotification("DesktopSnap", I18n.Instance.L("Snapshot saved."), H.NotifyIcon.Core.NotificationIcon.Info);
+                ShowToast(I18n.Instance.L("Snapshot saved."));
             }
         }
 
@@ -1096,11 +1112,11 @@ namespace DesktopSnap
             {
                 var iconsToRestore = GetEffectiveIcons(latest);
                 Task.Run(() => DesktopIconManager.SetIcons(iconsToRestore));
-                TrayIcon.ShowNotification("DesktopSnap", I18n.Instance.L("Desktop restored."), H.NotifyIcon.Core.NotificationIcon.Info);
+                ShowToast(I18n.Instance.L("Desktop restored."));
             }
             else
             {
-                TrayIcon.ShowNotification("DesktopSnap", I18n.Instance.L("No valid snapshot found."), H.NotifyIcon.Core.NotificationIcon.Warning);
+                ShowToast(I18n.Instance.L("No valid snapshot found."));
             }
         }
 
@@ -1154,6 +1170,32 @@ namespace DesktopSnap
             var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             if (_saveHotkeyId != -1) HotkeyManager.Unregister(hwnd, _saveHotkeyId);
             if (_oldWndProc != IntPtr.Zero) SetWindowLongPtr(hwnd, GWLP_WNDPROC, _oldWndProc);
+        }
+        public void ShowAndRestore()
+        {
+            this.DispatcherQueue.TryEnqueue(() =>
+            {
+                ShowWindow();
+            });
+        }
+
+        private void ShowToast(string message)
+        {
+            try
+            {
+                var toast = new AppNotificationBuilder()
+                    .AddText("DesktopSnap")
+                    .AddText(message)
+                    .BuildNotification();
+                
+                AppNotificationManager.Default.Show(toast);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Toast error: {ex.Message}");
+                // Fallback to Tray icon if toast fails (e.g. in some unpackaged environments)
+                TrayIcon.ShowNotification("DesktopSnap", message, H.NotifyIcon.Core.NotificationIcon.Info);
+            }
         }
     }
 }

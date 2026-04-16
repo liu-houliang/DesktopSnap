@@ -15,6 +15,8 @@ using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
+using Microsoft.Windows.AppLifecycle;
+using System.Diagnostics;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -39,11 +41,38 @@ namespace DesktopSnap
         /// Invoked when the application is launched.
         /// </summary>
         /// <param name="args">Details about the launch request and process.</param>
-        protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+        protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
+            // --- Single Instance Redirection ---
+            var mainInstance = Microsoft.Windows.AppLifecycle.AppInstance.FindOrRegisterForKey("DesktopSnap_SingleInstance");
+            if (!mainInstance.IsCurrent)
+            {
+                // Redirect the activation (like a toast click) to the existing instance
+                var activatedArgs = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
+                await mainInstance.RedirectActivationToAsync(activatedArgs);
+                
+                // Exit this duplicate process gracefully
+                Environment.Exit(0);
+                return;
+            }
+
+            // Register for future activation redirections (if we are the main instance)
+            mainInstance.Activated += (sender, e) =>
+            {
+                MainWindow.Instance?.ShowAndRestore();
+            };
+
             // Set working directory to the app's base directory to ensure relative paths work.
             // This is important when launched from Registry as Auto-Start.
             Directory.SetCurrentDirectory(AppContext.BaseDirectory);
+
+            try {
+                Microsoft.Windows.AppNotifications.AppNotificationManager.Default.NotificationInvoked += (sender, e) =>
+                {
+                    MainWindow.Instance?.ShowAndRestore();
+                };
+                Microsoft.Windows.AppNotifications.AppNotificationManager.Default.Register();
+            } catch { }
 
             // Check if launched with --silent (e.g. auto-start on boot)
             string[] cmdArgs = Environment.GetCommandLineArgs();

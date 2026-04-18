@@ -67,9 +67,14 @@ namespace DesktopSnap
         public string ScalingAdaptive => L("ScalingAdaptive");
         public string ResolutionMismatchBanner => L("ResolutionMismatchBanner");
         public string AutoArrangeWarning => L("AutoArrangeWarning");
+        public string AutoSaveOnDisplayChange => L("AutoSaveOnDisplayChange");
+        public string AutoSaveOnDisplayChangeDescription => L("AutoSaveOnDisplayChangeDescription");
+        public string DisplayChangeAutoSaveName => L("DisplayChangeAutoSaveName");
+        public string DetectedDisplayChange => L("DetectedDisplayChange");
         
         // New strings for tray and settings
         public string AutoStart => L("AutoStart");
+        public string AutoStartDescription => L("AutoStartDescription");
         public string Exit => L("Exit");
         public string AppName => L("AppTitle");
         public string WelcomeTitle => L("WelcomeTitle");
@@ -165,6 +170,7 @@ namespace DesktopSnap
                 { "ResolutionMismatchBanner", "警告：检测到显示器布局分辨率与保存时不一致，部分图标可能超出屏幕。" },
                 { "AutoArrangeWarning", "提醒：检测到桌面已开启“自动排列图标”，这可能会阻止图标恢复到预想位置。请右键桌面 -> 查看 -> 取消勾选“自动排列图标”后再试。" },
                 { "AutoStart", "开机自动启动" },
+                { "AutoStartDescription", "在系统启动时在后台静默运行" },
                 { "Exit", "完全退出" },
                 { "Snapshot saved via hotkey.", "已通过快捷键保存最新快照。" },
                 { "Latest snapshot restored via hotkey.", "已通过快捷键恢复最新快照。" },
@@ -193,7 +199,11 @@ namespace DesktopSnap
                 { "AboutVersionLabel", "版本" },
                 { "AboutGitHub", "GitHub 源代码" },
                 { "AboutChangelogTitle", "本版更新内容" },
-                { "AboutChangelog", "• 修复多显示器切换后快照错误提示分辨率变更的问题\n• 提升图标复位内存安全性，防止极端情况下 Explorer 崩溃\n• 显示器顺序现在按物理位置统一排序" }
+                { "AboutChangelog", "• 修复多显示器切换后快照错误提示分辨率变更的问题\n• 提升图标复位内存安全性，防止极端情况下 Explorer 崩溃\n• 显示器顺序现在按物理位置统一排序" },
+                { "AutoSaveOnDisplayChange", "环境变动后自动保存" },
+                { "AutoSaveOnDisplayChangeDescription", "当分辨率或显示器变动后，自动保存变更后的新布局" },
+                { "DisplayChangeAutoSaveName", "自动: 环境变动" },
+                { "DetectedDisplayChange", "检测到显示器环境变动，已自动为您备份当前布局。" }
             } },
             { "en", new Dictionary<string, string> {
                 { "AppTitle", "Desktop Snap" },
@@ -243,6 +253,7 @@ namespace DesktopSnap
                 { "ResolutionMismatchBanner", "Warning: Display layout/resolution mismatch. Some icons might be off-screen." },
                 { "AutoArrangeWarning", "Note: 'Auto-arrange icons' is enabled. This may prevent manual positioning. Please right-click Desktop -> View -> uncheck 'Auto-arrange icons'." },
                 { "AutoStart", "Run at startup" },
+                { "AutoStartDescription", "Run silently in the background on system boot" },
                 { "Exit", "Exit" },
                 { "Snapshot saved via hotkey.", "Latest snapshot saved via hotkey." },
                 { "Latest snapshot restored via hotkey.", "Latest snapshot restored via hotkey." },
@@ -271,7 +282,11 @@ namespace DesktopSnap
                 { "AboutVersionLabel", "Version" },
                 { "AboutGitHub", "Source Code on GitHub" },
                 { "AboutChangelogTitle", "What's New" },
-                { "AboutChangelog", "\u2022 Fixed false resolution-change warning when display enumeration order changes\n\u2022 Improved icon restore memory safety to prevent Explorer crashes\n\u2022 Displays now sorted left-to-right for consistent Desktop 1/2/3 labels" }
+                { "AboutChangelog", "\u2022 Fixed false resolution-change warning when display enumeration order changes\n\u2022 Improved icon restore memory safety to prevent Explorer crashes\n\u2022 Displays now sorted left-to-right for consistent Desktop 1/2/3 labels" },
+                { "AutoSaveOnDisplayChange", "Auto-save after display change" },
+                { "AutoSaveOnDisplayChangeDescription", "Automatically save the layout after displays change." },
+                { "DisplayChangeAutoSaveName", "Auto: Display Change" },
+                { "DetectedDisplayChange", "Display environment change detected. Current layout has been auto-saved." }
             } }
         };
 

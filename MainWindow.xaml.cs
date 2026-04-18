@@ -114,6 +114,7 @@ namespace DesktopSnap
             }
             AutoStartToggle.IsOn = settings.AutoStart;
             TrayAutoStartToggle.IsChecked = settings.AutoStart;
+            AutoSaveOnDisplayChangeToggle.IsOn = settings.AutoSaveOnDisplayChange;
             
             // Forcefully sync Registry on boot to match the default or saved setting.
             // If the setting is 'false', this cleans out any stuck true references.
@@ -147,6 +148,12 @@ namespace DesktopSnap
             var settings = SettingsManager.Load();
             settings.IsFirstRun = false;
             SettingsManager.Save(settings);
+        }
+
+        private async void SettingsBtn_Click(object sender, RoutedEventArgs e)
+        {
+            SettingsDialog.XamlRoot = this.Content.XamlRoot;
+            await SettingsDialog.ShowAsync();
         }
 
         private async void AboutBtn_Click(object sender, RoutedEventArgs e)
@@ -209,6 +216,8 @@ namespace DesktopSnap
         private IntPtr _oldWndProc;
 
         private const int GWLP_WNDPROC = -4;
+        private const int WM_DISPLAYCHANGE = 0x007E;
+        private DateTime _lastDisplayChangeAutoSave = DateTime.MinValue;
 
         [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr")]
         private static extern IntPtr SetWindowLongPtr64(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
@@ -237,6 +246,22 @@ namespace DesktopSnap
             {
                 int id = wParam.ToInt32();
                 HotkeyManager.HandleMessage(id);
+            }
+            else if (msg == WM_DISPLAYCHANGE)
+            {
+                var settings = SettingsManager.Load();
+                if (settings.AutoSaveOnDisplayChange)
+                {
+                    // Debounce: Windows often sends multiple WM_DISPLAYCHANGE messages in a row
+                    if ((DateTime.Now - _lastDisplayChangeAutoSave).TotalSeconds > 10)
+                    {
+                        _lastDisplayChangeAutoSave = DateTime.Now;
+                        this.DispatcherQueue.TryEnqueue(() => 
+                        {
+                            PerformAutoSnapshot(I18n.Instance.DisplayChangeAutoSaveName);
+                        });
+                    }
+                }
             }
 
             return CallWindowProc(_oldWndProc, hWnd, msg, wParam, lParam);
@@ -1161,6 +1186,45 @@ namespace DesktopSnap
                 {
                     TrayAutoStartToggle.IsChecked = isOn;
                 }
+            }
+        }
+
+        private void AutoSaveOnDisplayChangeToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (AutoSaveOnDisplayChangeToggle == null) return;
+            var settings = SettingsManager.Load();
+            bool isOn = AutoSaveOnDisplayChangeToggle.IsOn;
+
+            if (settings.AutoSaveOnDisplayChange != isOn)
+            {
+                settings.AutoSaveOnDisplayChange = isOn;
+                SettingsManager.Save(settings);
+            }
+        }
+
+        private void PerformAutoSnapshot(string reason)
+        {
+            try
+            {
+                var icons = DesktopIconManager.GetIcons();
+                if (icons.Count > 0)
+                {
+                    var newLayout = new DesktopLayout
+                    {
+                        Name = $"{reason} {DateTime.Now:MM-dd HH:mm:ss}",
+                        Icons = icons,
+                        CapturedDisplays = DisplayManager.GetDisplays()
+                    };
+                    LayoutManager.SaveLayout(newLayout);
+                    RefreshLayoutsList();
+                    
+                    // Specific toast for display change
+                    ShowToast(I18n.Instance.DetectedDisplayChange);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"AutoSnapshot error: {ex.Message}");
             }
         }
         

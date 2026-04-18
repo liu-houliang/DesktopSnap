@@ -13,6 +13,7 @@ namespace DesktopSnap
         public string RestoreHotkey { get; set; } = "Ctrl+Alt+R";
         public bool IsFirstRun { get; set; } = true;
         public bool HasShownTrayNotification { get; set; } = false;
+        public bool AutoSaveOnDisplayChange { get; set; } = false;
     }
 
     public static class SettingsManager

@@ -115,7 +115,9 @@
                 <ListView Grid.Row="3" x:Name="LayoutsListView" 
                           SelectionChanged="LayoutsListView_SelectionChanged" 
                           SelectionMode="Single"
-                          ItemContainerStyle="{StaticResource SnapshotItemStyle}">
+                          ItemContainerStyle="{StaticResource SnapshotItemStyle}"
+                          Padding="0,0,16,0"
+                          Margin="0,0,-8,0">
                     <ListView.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Spacing="4">
@@ -126,27 +128,25 @@
                     </ListView.ItemTemplate>
                 </ListView>
 
-                <StackPanel Grid.Row="4" Orientation="Vertical" Spacing="16" Margin="0,24,0,0">
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <TextBlock Text="{x:Bind Lang.Language, Mode=OneWay}" VerticalAlignment="Center" Foreground="#99ffffff" FontSize="12" Width="100" />
-                        <ComboBox x:Name="LangCombo" SelectionChanged="LangCombo_SelectionChanged" 
-                                  FontSize="12" MinWidth="120" CornerRadius="4">
-                            <ComboBoxItem Content="Auto" Tag="auto" />
-                            <ComboBoxItem Content="中文" Tag="zh" />
-                            <ComboBoxItem Content="English" Tag="en" />
-                        </ComboBox>
-                    </StackPanel>
+                <Grid Grid.Row="4" Margin="0,24,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
                     
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <TextBlock Text="{x:Bind Lang.AutoStart, Mode=OneWay}" VerticalAlignment="Center" Foreground="#99ffffff" FontSize="12" Width="100" />
-                        <ToggleSwitch x:Name="AutoStartToggle" 
-                                      OffContent="" OnContent=""
-                                      Toggled="AutoStartToggle_Toggled"
-                                      MinWidth="120" />
-                    </StackPanel>
+                    <Button x:Name="SettingsBtn" Click="SettingsBtn_Click"
+                            Grid.Column="0" HorizontalAlignment="Stretch" Padding="0,8"
+                            Background="Transparent" CornerRadius="6"
+                            BorderBrush="#22ffffff" BorderThickness="1">
+                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                            <FontIcon Glyph="&#xE713;" FontSize="14" Foreground="#99ffffff" />
+                            <TextBlock Text="{x:Bind Lang.Settings, Mode=OneWay}" Foreground="#99ffffff" FontSize="12" />
+                        </StackPanel>
+                    </Button>
 
                     <Button x:Name="AboutBtn" Click="AboutBtn_Click"
-                            HorizontalAlignment="Stretch" Padding="0,8"
+                            Grid.Column="2" HorizontalAlignment="Stretch" Padding="0,8"
                             Background="Transparent" CornerRadius="6"
                             BorderBrush="#22ffffff" BorderThickness="1">
                         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
@@ -154,7 +154,7 @@
                             <TextBlock Text="{x:Bind Lang.About, Mode=OneWay}" Foreground="#99ffffff" FontSize="12" />
                         </StackPanel>
                     </Button>
-                </StackPanel>
+                </Grid>
             </Grid>
         </Border>
 
@@ -453,6 +453,74 @@
                     </HyperlinkButton>
                 </StackPanel>
 
+            </StackPanel>
+        </ContentDialog>
+
+        <!-- Settings Dialog -->
+        <ContentDialog x:Name="SettingsDialog"
+                       Title="{x:Bind Lang.Settings, Mode=OneWay}"
+                       CloseButtonText="{x:Bind Lang.Close, Mode=OneWay}"
+                       DefaultButton="Close"
+                       CornerRadius="12"
+                       RequestedTheme="Dark">
+            <StackPanel Spacing="24" Margin="0,16,0,0" Width="440">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE774;" FontSize="20" Foreground="#88ffffff" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                        <TextBlock Text="{x:Bind Lang.Language, Mode=OneWay}" FontWeight="SemiBold" FontSize="14" />
+                    </StackPanel>
+                    <ComboBox Grid.Column="2" x:Name="LangCombo" SelectionChanged="LangCombo_SelectionChanged" 
+                              FontSize="13" MinWidth="140" CornerRadius="4" VerticalAlignment="Center">
+                        <ComboBoxItem Content="Auto" Tag="auto" />
+                        <ComboBoxItem Content="中文" Tag="zh" />
+                        <ComboBoxItem Content="English" Tag="en" />
+                    </ComboBox>
+                </Grid>
+
+                <Rectangle Height="1" Fill="#11ffffff" HorizontalAlignment="Stretch" />
+
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE7E8;" FontSize="20" Foreground="#88ffffff" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                        <TextBlock Text="{x:Bind Lang.AutoStart, Mode=OneWay}" FontWeight="SemiBold" FontSize="14" />
+                        <TextBlock Text="{x:Bind Lang.AutoStartDescription, Mode=OneWay}" Foreground="#88ffffff" FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" x:Name="AutoStartToggle" 
+                                  OffContent="" OnContent=""
+                                  Toggled="AutoStartToggle_Toggled"
+                                  VerticalAlignment="Center"
+                                  MinWidth="50" />
+                </Grid>
+
+                <Rectangle Height="1" Fill="#11ffffff" HorizontalAlignment="Stretch" />
+
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Grid.Column="0" Glyph="&#xE7F4;" FontSize="20" Foreground="#88ffffff" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                        <TextBlock Text="{x:Bind Lang.AutoSaveOnDisplayChange, Mode=OneWay}" FontWeight="SemiBold" FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Text="{x:Bind Lang.AutoSaveOnDisplayChangeDescription, Mode=OneWay}" Foreground="#88ffffff" FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" x:Name="AutoSaveOnDisplayChangeToggle" 
+                                  OffContent="" OnContent=""
+                                  Toggled="AutoSaveOnDisplayChangeToggle_Toggled"
+                                  VerticalAlignment="Center"
+                                  MinWidth="50" />
+                </Grid>
             </StackPanel>
         </ContentDialog>
 

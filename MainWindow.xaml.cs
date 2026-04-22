@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Shapes;
 using System;
+using System.IO;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,6 +14,8 @@ using Windows.UI;
 using H.NotifyIcon;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Windows.Storage.Pickers;
+using WinRT.Interop;
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
 
@@ -42,6 +45,7 @@ namespace DesktopSnap
         private int _selectedDisplayIndex = -1; // -1 for all displays
         
         private int _saveHotkeyId = -1;
+        private DispatcherTimer _statusTimer;
 
         public MainWindow(bool isSilentStart = false)
         {
@@ -305,6 +309,137 @@ namespace DesktopSnap
             if (LayoutsListView.SelectedItem == null && layouts.Count > 0)
             {
                 // Optionally auto-select first
+            }
+        }
+
+        private async void ExportPortableBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (LayoutsListView.SelectedItem is DesktopLayout layout)
+            {
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                var savePicker = new FileSavePicker();
+                InitializeWithWindow.Initialize(savePicker, hwnd);
+                savePicker.SuggestedStartLocation = PickerLocationId.Desktop;
+                savePicker.FileTypeChoices.Add("Desktop Layout Snapshot", new List<string>() { ".snap", ".json" });
+                savePicker.SuggestedFileName = $"{layout.Name}.snap";
+
+                var file = await savePicker.PickSaveFileAsync();
+                if (file != null)
+                {
+                    try
+                    {
+                        LayoutManager.ExportLayout(layout, file.Path);
+                        ShowStatus(InfoBarSeverity.Success, I18n.Instance.ExportSuccess + ": " + file.Name);
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowStatus(InfoBarSeverity.Error, $"Export failed: {ex.Message}");
+                    }
+                }
+            }
+        }
+
+        private async void ImportSingle_Click(object sender, RoutedEventArgs e)
+        {
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            var openPicker = new FileOpenPicker();
+            InitializeWithWindow.Initialize(openPicker, hwnd);
+            openPicker.SuggestedStartLocation = PickerLocationId.Desktop;
+            openPicker.FileTypeFilter.Add(".snap");
+            openPicker.FileTypeFilter.Add(".json");
+
+            var file = await openPicker.PickSingleFileAsync();
+            if (file != null)
+            {
+                try
+                {
+                    var (status, imported) = LayoutManager.ImportLayout(file.Path);
+                    if (imported != null)
+                    {
+                        RefreshLayoutsList();
+                        var matchedLayout = ((System.Collections.Generic.List<DesktopLayout>)LayoutsListView.ItemsSource).FirstOrDefault(l => l.Id == imported.Id);
+                        if (matchedLayout != null) LayoutsListView.SelectedItem = matchedLayout;
+                        
+                        string msg = I18n.Instance.ImportSuccessSingle;
+                        if (status == ImportStatus.Updated) msg = I18n.Instance.ImportUpdated;
+                        else if (status == ImportStatus.AsBackup) msg = I18n.Instance.ImportAsBackup;
+                        else if (status == ImportStatus.Skipped) msg = I18n.Instance.ImportSkippedIdentical;
+
+                        ShowStatus(InfoBarSeverity.Success, msg + (status != ImportStatus.Skipped ? ": " + imported.Name : ""));
+                    }
+                    else if (status == ImportStatus.Error)
+                    {
+                        ShowStatus(InfoBarSeverity.Error, I18n.Instance.L("ImportFailedInvalidFormat"));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    ShowStatus(InfoBarSeverity.Error, $"Import failed: {ex.Message}");
+                }
+            }
+        }
+
+        private async void ExportAll_Click(object sender, RoutedEventArgs e)
+        {
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            var savePicker = new FileSavePicker();
+            InitializeWithWindow.Initialize(savePicker, hwnd);
+            savePicker.SuggestedStartLocation = PickerLocationId.Desktop;
+            savePicker.FileTypeChoices.Add("Layout Backup Package", new List<string>() { ".zip" });
+            savePicker.SuggestedFileName = $"DesktopSnap_Backup_{DateTime.Now:yyyyMMdd}.zip";
+
+            var file = await savePicker.PickSaveFileAsync();
+            if (file != null)
+            {
+                try
+                {
+                    LayoutManager.ExportAllLayouts(file.Path);
+                    ShowStatus(InfoBarSeverity.Success, I18n.Instance.ExportSuccess + ": " + file.Name);
+                }
+                catch (Exception ex)
+                {
+                    ShowStatus(InfoBarSeverity.Error, $"Backup failed: {ex.Message}");
+                }
+            }
+        }
+
+        private async void ImportAll_Click(object sender, RoutedEventArgs e)
+        {
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            var openPicker = new FileOpenPicker();
+            InitializeWithWindow.Initialize(openPicker, hwnd);
+            openPicker.SuggestedStartLocation = PickerLocationId.Desktop;
+            openPicker.FileTypeFilter.Add(".zip");
+
+            var file = await openPicker.PickSingleFileAsync();
+            if (file != null)
+            {
+                try
+                {
+                    int count = LayoutManager.ImportAllLayouts(file.Path);
+                    RefreshLayoutsList();
+                    ShowStatus(InfoBarSeverity.Success, string.Format(I18n.Instance.ImportSuccess, count));
+                }
+                catch (Exception ex)
+                {
+                    ShowStatus(InfoBarSeverity.Error, $"Import failed: {ex.Message}");
+                }
+            }
+        }
+
+        private void OpenBackupFolder_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string path = LayoutManager.GetLayoutsDirectory();
+                if (Directory.Exists(path))
+                {
+                    Process.Start(new ProcessStartInfo("explorer.exe", path) { UseShellExecute = true });
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowStatus(InfoBarSeverity.Error, $"Failed to open folder: {ex.Message}");
             }
         }
 
@@ -1076,6 +1211,20 @@ namespace DesktopSnap
             StatusInfo.Severity = severity;
             StatusInfo.Message = message;
             StatusInfo.IsOpen = true;
+
+            if (_statusTimer == null)
+            {
+                _statusTimer = new DispatcherTimer();
+                _statusTimer.Interval = TimeSpan.FromSeconds(5);
+                _statusTimer.Tick += (s, e) =>
+                {
+                    StatusInfo.IsOpen = false;
+                    _statusTimer.Stop();
+                };
+            }
+
+            _statusTimer.Stop(); // Reset timer if already running
+            _statusTimer.Start();
         }
 
         // --- System Tray Actions ---

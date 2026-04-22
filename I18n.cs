@@ -58,6 +58,22 @@ namespace DesktopSnap
         public string Close => L("Close");
         public string RestoringWait => L("RestoringWait");
         public string All => L("All");
+        public string BackupManagement => L("BackupManagement");
+        public string BackupDescription => L("BackupDescription");
+        public string ExportPack => L("ExportPack");
+        public string ImportPack => L("ImportPack");
+        public string OpenFolder => L("OpenFolder");
+        public string ExportSuccess => L("ExportSuccess");
+        public string ImportSuccess => L("ImportSuccess");
+        public string ImportSuccessSingle => L("ImportSuccessSingle");
+        public string ImportUpdated => L("ImportUpdated");
+        public string ImportAsBackup => L("ImportAsBackup");
+        public string ImportTagNew => L("ImportTagNew");
+        public string ImportTagOld => L("ImportTagOld");
+        public string ImportSkippedIdentical => L("ImportSkippedIdentical");
+        public string ImportFailedInvalidFormat => L("ImportFailedInvalidFormat");
+        public string Export => L("Export");
+        public string Import => L("Import");
         public string ResolutionMismatchTitle => L("ResolutionMismatchTitle");
         public string ResolutionMismatchContent => L("ResolutionMismatchContent");
         public string ScalePos => L("ScalePos");
@@ -160,6 +176,22 @@ namespace DesktopSnap
                 { "Close", "关闭" },
                 { "RestoringWait", "正在恢复桌面图标布局，请稍候..." },
                 { "All", "全部" },
+                { "BackupManagement", "数据管理与备份" },
+                { "BackupDescription", "导出所有快照为备份包，或从备份包恢复。您也可以直接打开备份文件夹手动管理 JSON 文件。" },
+                { "ExportPack", "导出所有快照备份 (.zip)" },
+                { "ImportPack", "从备份包恢复快照 (.zip)" },
+                { "OpenFolder", "打开本地备份文件夹" },
+                { "ExportSuccess", "备份已成功导出。" },
+                { "ImportSuccess", "备份已成功导入，共计 {0} 个快照。" },
+                { "ImportSuccessSingle", "快照导入成功。" },
+                { "ImportUpdated", "检测到较新版本，已更新现有快照。" },
+                { "ImportAsBackup", "检测到现有快照较新，已作为备份副本导入。" },
+                { "ImportTagNew", " (新)" },
+                { "ImportTagOld", " (旧)" },
+                { "ImportSkippedIdentical", "检测到内容完全一致，已跳过。" },
+                { "ImportFailedInvalidFormat", "导入失败：快照文件内容格式不正确或已损坏。" },
+                { "Export", "导出快照" },
+                { "Import", "导入快照" },
                 { "ResolutionMismatchTitle", "显示器布局或分辨率已改变" },
                 { "ResolutionMismatchContent", "检测到当前的显示器分辨率或排列与快照保存时不一致。\n\n建议选择“按比例缩放”以尝试使图标保持在屏幕相对位置。选择“保持原坐标”可能会导致部分图标超出可见区域。" },
                 { "ScalePos", "按比例缩放" },
@@ -243,6 +275,22 @@ namespace DesktopSnap
                 { "Close", "Close" },
                 { "RestoringWait", "Restoring desktop icon layout, please wait..." },
                 { "All", "All" },
+                { "BackupManagement", "Data & Backup Management" },
+                { "BackupDescription", "Export all snapshots as a backup package or restore from one. You can also open the local folder to manage files manually." },
+                { "ExportPack", "Export All Snapshot Backup (.zip)" },
+                { "ImportPack", "Restore from Backup Package (.zip)" },
+                { "OpenFolder", "Open Backup Folder" },
+                { "ExportSuccess", "Backup exported successfully." },
+                { "ImportSuccess", "Imported {0} snapshots successfully from backup." },
+                { "ImportSuccessSingle", "Snapshot imported successfully." },
+                { "ImportUpdated", "A newer version was detected and the existing snapshot has been updated." },
+                { "ImportAsBackup", "Existing snapshot is newer; imported as a backup copy." },
+                { "ImportTagNew", " (New)" },
+                { "ImportTagOld", " (Old)" },
+                { "ImportSkippedIdentical", "Identical content detected; skipping import." },
+                { "ImportFailedInvalidFormat", "Import failed: The snapshot file format is invalid or corrupted." },
+                { "Export", "Export Layout" },
+                { "Import", "Import Layout" },
                 { "ResolutionMismatchTitle", "Display Layout Mismatch" },
                 { "ResolutionMismatchContent", "Detected that the current display resolution or arrangement has changed since this snapshot was taken.\n\nRecommended: choose 'Scale' to keep icons in their relative positions. Choosing 'Keep Original' may result in icons being off-screen." },
                 { "ScalePos", "Scale Proportional" },

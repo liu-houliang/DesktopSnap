@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text.Json;
 
@@ -16,6 +17,15 @@ namespace DesktopSnap
         public string SavedTime => SavedAt.ToString("yyyy-MM-dd HH:mm:ss");
     }
 
+    public enum ImportStatus
+    {
+        Success,
+        Updated,
+        AsBackup,
+        Skipped,
+        Error
+    }
+
     public static class LayoutManager
     {
         private static string _layoutsDirectory;
@@ -24,7 +34,7 @@ namespace DesktopSnap
         {
             _layoutsDirectory = Path.Combine(AppEnv.GetDataDirectory(), "Layouts");
             
-            // Migrate old layouts if we're now in Packaged mode
+            // Migration handling...
             if (AppEnv.IsPackaged)
             {
                 string oldLayoutsDir = Path.Combine(AppContext.BaseDirectory, "Config", "Layouts");
@@ -33,7 +43,6 @@ namespace DesktopSnap
                     try
                     {
                         if (!Directory.Exists(_layoutsDirectory)) Directory.CreateDirectory(_layoutsDirectory);
-                        
                         var files = Directory.GetFiles(oldLayoutsDir, "*.json");
                         foreach (var file in files)
                         {
@@ -44,9 +53,10 @@ namespace DesktopSnap
                     catch { }
                 }
             }
-            
             if (!Directory.Exists(_layoutsDirectory)) Directory.CreateDirectory(_layoutsDirectory);
         }
+
+        public static string GetLayoutsDirectory() => _layoutsDirectory;
 
         public static List<DesktopLayout> GetAllLayouts()
         {
@@ -62,6 +72,14 @@ namespace DesktopSnap
                     var layout = JsonSerializer.Deserialize<DesktopLayout>(json);
                     if (layout != null)
                     {
+                        foreach (var icon in layout.Icons)
+                        {
+                            icon.FilePath = PathService.Denormalize(icon.FilePath);
+                            icon.ShortcutTarget = PathService.Denormalize(icon.ShortcutTarget);
+                            icon.ShortcutIconLocation = PathService.Denormalize(icon.ShortcutIconLocation);
+                            icon.ShortcutWorkingDir = PathService.Denormalize(icon.ShortcutWorkingDir);
+                        }
+
                         if (layout.Id.StartsWith("auto_") || layout.Id == "temp_auto_save")
                         {
                             layout.Name = I18n.Instance.AutoTempSave + " (" + layout.SavedAt.ToString("MM-dd HH:mm") + ")";
@@ -76,10 +94,129 @@ namespace DesktopSnap
 
         public static void SaveLayout(DesktopLayout layout)
         {
-            layout.SavedAt = DateTime.Now; // Update time
             string file = Path.Combine(_layoutsDirectory, $"{layout.Id}.json");
-            string json = JsonSerializer.Serialize(layout, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(file, json);
+            SaveLayoutInternal(layout, file, true);
+        }
+
+        public static void ExportLayout(DesktopLayout layout, string destinationPath)
+        {
+            SaveLayoutInternal(layout, destinationPath, false); // Don't update time when exporting
+        }
+
+        private static void SaveLayoutInternal(DesktopLayout layout, string path, bool updateTimestamp)
+        {
+            if (updateTimestamp) layout.SavedAt = DateTime.Now;
+
+            var portableLayout = new DesktopLayout
+            {
+                Id = layout.Id,
+                Name = layout.Name,
+                SavedAt = layout.SavedAt,
+                CapturedDisplays = layout.CapturedDisplays,
+                Icons = layout.Icons.Select(i => new IconInfo
+                {
+                    Name = i.Name,
+                    X = i.X,
+                    Y = i.Y,
+                    FilePath = PathService.Normalize(i.FilePath),
+                    ShortcutTarget = PathService.Normalize(i.ShortcutTarget),
+                    ShortcutArgs = i.ShortcutArgs,
+                    ShortcutIconLocation = PathService.Normalize(i.ShortcutIconLocation),
+                    ShortcutWorkingDir = PathService.Normalize(i.ShortcutWorkingDir)
+                }).ToList()
+            };
+
+            string json = JsonSerializer.Serialize(portableLayout, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(path, json);
+        }
+
+        public static (ImportStatus status, DesktopLayout layout) ImportLayout(string sourcePath)
+        {
+            if (!File.Exists(sourcePath)) return (ImportStatus.Error, null);
+            
+            try
+            {
+                string json = File.ReadAllText(sourcePath);
+                var layout = JsonSerializer.Deserialize<DesktopLayout>(json);
+                if (layout == null) return (ImportStatus.Error, null);
+
+                var existingLayouts = GetAllLayouts();
+                var existing = existingLayouts.FirstOrDefault(l => l.Id == layout.Id);
+
+                ImportStatus status = ImportStatus.Success;
+
+                if (existing != null)
+                {
+                    if (layout.SavedAt == existing.SavedAt)
+                    {
+                        return (ImportStatus.Skipped, existing);
+                    }
+                    else if (layout.SavedAt > existing.SavedAt)
+                    {
+                        // Incoming is newer, overwrite the existing one (keep same ID)
+                        status = ImportStatus.Updated;
+                    }
+                    else
+                    {
+                        // Incoming is older, import as a new backup copy
+                        layout.Id = Guid.NewGuid().ToString();
+                        layout.Name += I18n.Instance.ImportTagOld;
+                        status = ImportStatus.AsBackup;
+                    }
+                }
+
+                // Save locally (always preserve the original timestamp of the backup if it's an import)
+                string destFile = Path.Combine(_layoutsDirectory, $"{layout.Id}.json");
+                SaveLayoutInternal(layout, destFile, false); 
+
+                // Denormalize for UI
+                foreach (var icon in layout.Icons)
+                {
+                    icon.FilePath = PathService.Denormalize(icon.FilePath);
+                    icon.ShortcutTarget = PathService.Denormalize(icon.ShortcutTarget);
+                    icon.ShortcutIconLocation = PathService.Denormalize(icon.ShortcutIconLocation);
+                    icon.ShortcutWorkingDir = PathService.Denormalize(icon.ShortcutWorkingDir);
+                }
+
+                return (status, layout);
+            }
+            catch (Exception ex) 
+            { 
+                System.Diagnostics.Debug.WriteLine($"Import Error: {ex}"); 
+                return (ImportStatus.Error, null);
+            }
+        }
+
+        public static void ExportAllLayouts(string zipPath)
+        {
+            if (File.Exists(zipPath)) File.Delete(zipPath);
+            ZipFile.CreateFromDirectory(_layoutsDirectory, zipPath);
+        }
+
+        public static int ImportAllLayouts(string zipPath)
+        {
+            int importedCount = 0;
+            string tempDir = Path.Combine(Path.GetTempPath(), "DesktopSnap_Import_" + Guid.NewGuid().ToString());
+            try
+            {
+                Directory.CreateDirectory(tempDir);
+                ZipFile.ExtractToDirectory(zipPath, tempDir);
+                
+                var files = Directory.GetFiles(tempDir, "*.json");
+                foreach (var file in files)
+                {
+                    var (status, _) = ImportLayout(file);
+                    if (status == ImportStatus.Success || status == ImportStatus.Updated || status == ImportStatus.AsBackup)
+                    {
+                        importedCount++;
+                    }
+                }
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+            }
+            return importedCount;
         }
 
         public static void DeleteLayout(string id)

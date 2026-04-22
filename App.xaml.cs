@@ -43,17 +43,57 @@ namespace DesktopSnap
         /// <param name="args">Details about the launch request and process.</param>
         protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
+            // Check if launched with --silent (e.g. auto-start on boot) - check this early
+            string[] cmdArgs = Environment.GetCommandLineArgs();
+            bool isSilent = cmdArgs.Any(a => a.Equals("--silent", StringComparison.OrdinalIgnoreCase));
+
             // --- Single Instance Redirection ---
             var mainInstance = Microsoft.Windows.AppLifecycle.AppInstance.FindOrRegisterForKey("DesktopSnap_SingleInstance");
             if (!mainInstance.IsCurrent)
             {
-                // Redirect the activation (like a toast click) to the existing instance
-                var activatedArgs = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
-                await mainInstance.RedirectActivationToAsync(activatedArgs);
-                
-                // Exit this duplicate process gracefully
-                Environment.Exit(0);
-                return;
+                // When auto-starting from registry, there might be edge cases where
+                // AppInstance detects a "ghost" instance that actually crashed.
+                // For --silent mode, verify the existing instance is actually responsive.
+                if (isSilent)
+                {
+                    // Check if there's a real process running with our executable name
+                    var currentProcess = Process.GetCurrentProcess();
+                    var processes = Process.GetProcessesByName(currentProcess.ProcessName);
+                    int otherInstanceCount = processes.Count(p => p.Id != currentProcess.Id);
+                    
+                    // If no other real process found, this is a ghost instance registration.
+                    // Continue launching as the main instance.
+                    if (otherInstanceCount == 0)
+                    {
+                        Debug.WriteLine("Auto-start detected ghost instance, continuing as main instance...");
+                        // Continue with initialization below (skip the exit)
+                    }
+                    else
+                    {
+                        // Real duplicate instance, redirect and exit
+                        try
+                        {
+                            var activatedArgs = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
+                            await mainInstance.RedirectActivationToAsync(activatedArgs);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"RedirectActivation failed during auto-start: {ex.Message}");
+                        }
+                        Environment.Exit(0);
+                        return;
+                    }
+                }
+                else
+                {
+                    // Normal launch (not auto-start): redirect to existing instance
+                    var activatedArgs = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
+                    await mainInstance.RedirectActivationToAsync(activatedArgs);
+                    
+                    // Exit this duplicate process gracefully
+                    Environment.Exit(0);
+                    return;
+                }
             }
 
             // Register for future activation redirections (if we are the main instance)
@@ -74,10 +114,7 @@ namespace DesktopSnap
                 Microsoft.Windows.AppNotifications.AppNotificationManager.Default.Register();
             } catch { }
 
-            // Check if launched with --silent (e.g. auto-start on boot)
-            string[] cmdArgs = Environment.GetCommandLineArgs();
-            bool isSilent = cmdArgs.Any(a => a.Equals("--silent", StringComparison.OrdinalIgnoreCase));
-
+            // isSilent is already checked at the beginning of OnLaunched
             m_window = new MainWindow(isSilentStart: isSilent);
 
             // Always activate so the HWND message-loop and tray icon are fully initialized.

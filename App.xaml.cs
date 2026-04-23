@@ -49,7 +49,8 @@ namespace DesktopSnap
 
             // --- Single Instance Redirection ---
             var mainInstance = Microsoft.Windows.AppLifecycle.AppInstance.FindOrRegisterForKey("DesktopSnap_SingleInstance");
-            if (!mainInstance.IsCurrent)
+            bool isActingMainInstance = mainInstance.IsCurrent;
+            if (!isActingMainInstance)
             {
                 // When auto-starting from registry, there might be edge cases where
                 // AppInstance detects a "ghost" instance that actually crashed.
@@ -66,6 +67,7 @@ namespace DesktopSnap
                     if (otherInstanceCount == 0)
                     {
                         Debug.WriteLine("Auto-start detected ghost instance, continuing as main instance...");
+                        isActingMainInstance = true;
                         // Continue with initialization below (skip the exit)
                     }
                     else
@@ -97,10 +99,13 @@ namespace DesktopSnap
             }
 
             // Register for future activation redirections (if we are the main instance)
-            mainInstance.Activated += (sender, e) =>
+            if (isActingMainInstance)
             {
-                MainWindow.Instance?.ShowAndRestore();
-            };
+                Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().Activated += (sender, e) =>
+                {
+                    MainWindow.Instance?.ShowAndRestore();
+                };
+            }
 
             // Set working directory to the app's base directory to ensure relative paths work.
             // This is important when launched from Registry as Auto-Start.

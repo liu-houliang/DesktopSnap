@@ -122,7 +122,7 @@ namespace DesktopSnap
             
             // Forcefully sync Registry on boot to match the default or saved setting.
             // If the setting is 'false', this cleans out any stuck true references.
-            AutoStartManager.SetAutoStart(settings.AutoStart);
+            _ = AutoStartManager.SetAutoStartAsync(settings.AutoStart);
 
             LayoutManager.AutoSaveTemporary();
             RefreshLayoutsList();
@@ -1302,23 +1302,29 @@ namespace DesktopSnap
         }
 
         [CommunityToolkit.Mvvm.Input.RelayCommand]
-        public void TrayToggleAutoStart()
+        public async Task TrayToggleAutoStart()
         {
             var settings = SettingsManager.Load();
             
             // Toggle the boolean value based on config, ignoring the UI state to avoid race conditions
             bool newValue = !settings.AutoStart;
             
+            bool success = await AutoStartManager.SetAutoStartAsync(newValue);
+            if (!success && newValue == true)
+            {
+                // Failed to enable (e.g. disabled by user in Task Manager)
+                newValue = false;
+            }
+
             settings.AutoStart = newValue;
             SettingsManager.Save(settings);
-            AutoStartManager.SetAutoStart(newValue);
             
             // Force UI components to match the new truth
             if (TrayAutoStartToggle != null) TrayAutoStartToggle.IsChecked = newValue;
             if (AutoStartToggle != null) AutoStartToggle.IsOn = newValue;
         }
 
-        private void AutoStartToggle_Toggled(object sender, RoutedEventArgs e)
+        private async void AutoStartToggle_Toggled(object sender, RoutedEventArgs e)
         {
             if (AutoStartToggle == null) return;
             var settings = SettingsManager.Load();
@@ -1326,9 +1332,16 @@ namespace DesktopSnap
 
             if (settings.AutoStart != isOn)
             {
+                bool success = await AutoStartManager.SetAutoStartAsync(isOn);
+                if (!success && isOn == true)
+                {
+                    // Revert the toggle visually and return
+                    AutoStartToggle.IsOn = false;
+                    return;
+                }
+
                 settings.AutoStart = isOn;
                 SettingsManager.Save(settings);
-                AutoStartManager.SetAutoStart(isOn);
 
                 // Keep Tray menu UI in sync
                 if (TrayAutoStartToggle != null)

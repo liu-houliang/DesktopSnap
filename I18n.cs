@@ -235,7 +235,8 @@ namespace DesktopSnap
                 { "AutoSaveOnDisplayChange", "环境变动后自动保存" },
                 { "AutoSaveOnDisplayChangeDescription", "当分辨率或显示器变动后，自动保存变更后的新布局" },
                 { "DisplayChangeAutoSaveName", "自动: 环境变动" },
-                { "DetectedDisplayChange", "检测到显示器环境变动，已自动为您备份当前布局。" }
+                { "DetectedDisplayChange", "检测到显示器环境变动，已自动为您备份当前布局。" },
+                { "System restricted auto-start. Opening Task Manager...", "系统权限限制，已被手动禁用。正在为您打开任务管理器，请手动允许。" }
             } },
             { "en", new Dictionary<string, string> {
                 { "AppTitle", "Desktop Snap" },
@@ -334,7 +335,8 @@ namespace DesktopSnap
                 { "AutoSaveOnDisplayChange", "Auto-save after display change" },
                 { "AutoSaveOnDisplayChangeDescription", "Automatically save the layout after displays change." },
                 { "DisplayChangeAutoSaveName", "Auto: Display Change" },
-                { "DetectedDisplayChange", "Display environment change detected. Current layout has been auto-saved." }
+                { "DetectedDisplayChange", "Display environment change detected. Current layout has been auto-saved." },
+                { "System restricted auto-start. Opening Task Manager...", "System restricted auto-start. Opening Task Manager for you to enable manually." }
             } }
         };
 

@@ -11,10 +11,7 @@ namespace DesktopSnap
     {
         private const string AppName = "DesktopSnap";
 
-        public static bool IsAutoStartEnabled()
-        {
-            return Task.Run(async () => await IsAutoStartEnabledAsync()).GetAwaiter().GetResult();
-        }
+
 
         public static async Task<bool> IsAutoStartEnabledAsync()
         {
@@ -116,7 +113,8 @@ namespace DesktopSnap
                     }
                     return true;
                 }
-                catch (Exception ex)
+            }
+            catch (Exception ex)
                 {
                     Debug.WriteLine($"Error toggling AutoStart: {ex.Message}");
                     return false;

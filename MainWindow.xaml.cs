@@ -120,9 +120,8 @@ namespace DesktopSnap
             TrayAutoStartToggle.IsChecked = settings.AutoStart;
             AutoSaveOnDisplayChangeToggle.IsOn = settings.AutoSaveOnDisplayChange;
             
-            // Forcefully sync Registry on boot to match the default or saved setting.
-            // If the setting is 'false', this cleans out any stuck true references.
-            _ = AutoStartManager.SetAutoStartAsync(settings.AutoStart);
+            // Sync internal settings with actual system auto-start status
+            _ = SyncAutoStartWithSystemAsync();
 
             LayoutManager.AutoSaveTemporary();
             RefreshLayoutsList();
@@ -132,6 +131,28 @@ namespace DesktopSnap
             if (!isSilentStart)
             {
                 CheckFirstRun();
+            }
+        }
+
+        private async Task SyncAutoStartWithSystemAsync()
+        {
+            var settings = SettingsManager.Load();
+            bool actualSystemState = await AutoStartManager.IsAutoStartEnabledAsync();
+            
+            if (settings.AutoStart != actualSystemState)
+            {
+                settings.AutoStart = actualSystemState;
+                SettingsManager.Save(settings);
+                
+                // Update UI visually
+                if (AutoStartToggle != null) AutoStartToggle.IsOn = actualSystemState;
+                if (TrayAutoStartToggle != null) TrayAutoStartToggle.IsChecked = actualSystemState;
+            }
+            else
+            {
+                // If they match, still forcefully sync Registry on boot to match the default or saved setting.
+                // This ensures correct executable path and cleans out any stuck true references if it was false.
+                _ = AutoStartManager.SetAutoStartAsync(settings.AutoStart);
             }
         }
 
@@ -1314,6 +1335,8 @@ namespace DesktopSnap
             {
                 // Failed to enable (e.g. disabled by user in Task Manager)
                 newValue = false;
+                ShowToast(I18n.Instance.L("System restricted auto-start. Opening Task Manager..."));
+                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "taskmgr", Arguments = "/0 /startup", UseShellExecute = true }); } catch { }
             }
 
             settings.AutoStart = newValue;
@@ -1337,6 +1360,8 @@ namespace DesktopSnap
                 {
                     // Revert the toggle visually and return
                     AutoStartToggle.IsOn = false;
+                    ShowToast(I18n.Instance.L("System restricted auto-start. Opening Task Manager..."));
+                    try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "taskmgr", Arguments = "/0 /startup", UseShellExecute = true }); } catch { }
                     return;
                 }
 

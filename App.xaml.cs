@@ -43,9 +43,16 @@ namespace DesktopSnap
         /// <param name="args">Details about the launch request and process.</param>
         protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
-            // Check if launched with --silent (e.g. auto-start on boot) - check this early
+            // Check if launched with --silent (e.g. auto-start on boot)
             string[] cmdArgs = Environment.GetCommandLineArgs();
             bool isSilent = cmdArgs.Any(a => a.Equals("--silent", StringComparison.OrdinalIgnoreCase));
+
+            // Also check for MSIX StartupTask activation (for packaged version)
+            var activatedArgs = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
+            if (activatedArgs.Kind == Microsoft.Windows.AppLifecycle.ExtendedActivationKind.StartupTask)
+            {
+                isSilent = true;
+            }
 
             // --- Single Instance Redirection ---
             var mainInstance = Microsoft.Windows.AppLifecycle.AppInstance.FindOrRegisterForKey("DesktopSnap_SingleInstance");
@@ -75,7 +82,7 @@ namespace DesktopSnap
                         // Real duplicate instance, redirect and exit
                         try
                         {
-                            var activatedArgs = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
+                            activatedArgs = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
                             await mainInstance.RedirectActivationToAsync(activatedArgs);
                         }
                         catch (Exception ex)
@@ -89,7 +96,7 @@ namespace DesktopSnap
                 else
                 {
                     // Normal launch (not auto-start): redirect to existing instance
-                    var activatedArgs = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
+                    activatedArgs = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
                     await mainInstance.RedirectActivationToAsync(activatedArgs);
                     
                     // Exit this duplicate process gracefully

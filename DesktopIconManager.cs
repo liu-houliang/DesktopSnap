@@ -233,6 +233,7 @@ namespace DesktopSnap
                 {
                     int err = Marshal.GetLastWin32Error();
                     AppendLog($"Error: VirtualAllocEx failed with code {err}\n");
+                    CloseHandle(process);
                     return icons;
                 }
 
@@ -513,6 +514,8 @@ namespace DesktopSnap
                 return result;
             }
 
+            bool processClosed = false;
+
             int count = (int)SendMessage(listView, LVM_GETITEMCOUNT, IntPtr.Zero, IntPtr.Zero);
             AppendLog($"Action Set Phase 3: Current count: {count}\n");
 
@@ -529,6 +532,8 @@ namespace DesktopSnap
                 if (pBuf == IntPtr.Zero)
                 {
                     AppendLog($"Error (Set Phase 3): VirtualAllocEx failed with code {Marshal.GetLastWin32Error()}\n");
+                    CloseHandle(process);
+                    processClosed = true;
                     return result;
                 }
 
@@ -583,7 +588,7 @@ namespace DesktopSnap
             {
                 // Always free remote memory and close the handle, even if an exception occurs.
                 if (pBuf != IntPtr.Zero) VirtualFreeEx(process, pBuf, 0, MEM_RELEASE);
-                CloseHandle(process);
+                if (!processClosed) CloseHandle(process);
             }
 
             // ===== PHASE 4: Write icon positions =====
@@ -639,7 +644,10 @@ namespace DesktopSnap
         private static HashSet<string> GetCurrentIconNames(IntPtr listView, uint pid)
         {
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            IntPtr process = OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, false, pid);
+            
+            // Re-fetch pid from the listView handle to avoid stale pid issues
+            GetWindowThreadProcessId(listView, out uint actualPid);
+            IntPtr process = OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, false, actualPid);
             if (process == IntPtr.Zero) return names;
 
             int count = (int)SendMessage(listView, LVM_GETITEMCOUNT, IntPtr.Zero, IntPtr.Zero);

@@ -51,14 +51,13 @@ namespace DesktopSnap
                 }
             }
 
-            if (key != 0)
+            if (key == 0) return -1;
+
+            int id = _currentId++;
+            if (RegisterHotKey(hWnd, id, modifiers, key))
             {
-                int id = _currentId++;
-                if (RegisterHotKey(hWnd, id, modifiers, key))
-                {
-                    _hotkeyActions[id] = action;
-                    return id;
-                }
+                _hotkeyActions[id] = action;
+                return id;
             }
             return -1;
         }

@@ -34,10 +34,17 @@ namespace DesktopSnap
         public I18n Lang => I18n.Instance;
 
         // Icon thumbnail cache: file path -> DesktopIconCacheEntry
-        private class DesktopIconCacheEntry 
+        private class DesktopIconCacheEntry : IDisposable
         {
             public BitmapImage Image { get; set; }
-            public object Stream { get; set; }
+            public Windows.Storage.Streams.InMemoryRandomAccessStream Stream { get; set; }
+
+            public void Dispose()
+            {
+                Stream?.Dispose();
+                Stream = null;
+                Image = null;
+            }
         }
 
         private static readonly ConcurrentDictionary<string, DesktopIconCacheEntry> _iconCache = new(StringComparer.OrdinalIgnoreCase);
@@ -232,6 +239,12 @@ namespace DesktopSnap
                     SettingsManager.Save(settings);
                 }
             }
+            else
+            {
+                // Truly closing
+                CleanupResources();
+                TrayIcon.Dispose();
+            }
         }
 
         // --- Win32 WndProc Hooking for Hotkeys ---
@@ -278,7 +291,7 @@ namespace DesktopSnap
                 if (settings.AutoSaveOnDisplayChange)
                 {
                     // Debounce: Windows often sends multiple WM_DISPLAYCHANGE messages in a row
-                    if ((DateTime.Now - _lastDisplayChangeAutoSave).TotalSeconds > 10)
+                    if ((DateTime.Now - _lastDisplayChangeAutoSave).TotalSeconds > 3)
                     {
                         _lastDisplayChangeAutoSave = DateTime.Now;
                         this.DispatcherQueue.TryEnqueue(() => 
@@ -1080,11 +1093,27 @@ namespace DesktopSnap
                         // Avoid unbounded memory growth
                         if (_iconCache.Count > 200) 
                         {
-                            _iconCache.Clear();
+                            // Clear half the cache (oldest-ish entries in a ConcurrentDictionary)
+                            int toRemove = _iconCache.Count / 2;
+                            foreach (var key in _iconCache.Keys.Take(toRemove))
+                            {
+                                if (_iconCache.TryRemove(key, out var oldEntry))
+                                {
+                                    oldEntry.Dispose();
+                                }
+                            }
                         }
 
-                        // Cache the fully-decoded image (always, regardless of version)
-                        _iconCache[cacheKey] = new DesktopIconCacheEntry { Image = bmp, Stream = ras };
+                        // Cache the fully-decoded image using atomic AddOrUpdate
+                        var newEntry = new DesktopIconCacheEntry { Image = bmp, Stream = ras };
+                        var existingEntry = _iconCache.AddOrUpdate(
+                            cacheKey,
+                            newEntry,
+                            (key, oldValue) =>
+                            {
+                                oldValue.Dispose();
+                                return newEntry;
+                            });
 
                         // Only update UI if this load is still relevant to the current preview
                         if (myVersion == _iconLoadVersion)
@@ -1318,6 +1347,7 @@ namespace DesktopSnap
         [CommunityToolkit.Mvvm.Input.RelayCommand]
         public void TrayExit()
         {
+            CleanupResources();
             TrayIcon.Dispose();
             Application.Current.Exit();
         }
@@ -1415,12 +1445,39 @@ namespace DesktopSnap
             }
         }
         
-        // Ensure to dispose hotkeys and tray on fully closing process later 
-        ~MainWindow()
+        // Clean up resources when the window is actually being closed.
+        // We handle this in AppWindow_Closing rather than a finalizer for safety.
+        private void CleanupResources()
         {
-            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-            if (_saveHotkeyId != -1) HotkeyManager.Unregister(hwnd, _saveHotkeyId);
-            if (_oldWndProc != IntPtr.Zero) SetWindowLongPtr(hwnd, GWLP_WNDPROC, _oldWndProc);
+            try
+            {
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                if (_saveHotkeyId != -1)
+                {
+                    HotkeyManager.Unregister(hwnd, _saveHotkeyId);
+                    _saveHotkeyId = -1;
+                }
+
+                if (_oldWndProc != IntPtr.Zero)
+                {
+                    SetWindowLongPtr(hwnd, GWLP_WNDPROC, _oldWndProc);
+                    _oldWndProc = IntPtr.Zero;
+                }
+
+                // Clear and dispose icon cache
+                foreach (var entry in _iconCache.Values)
+                {
+                    entry.Dispose();
+                }
+                _iconCache.Clear();
+
+                // Dispose the semaphore to release any waiting tasks
+                _iconLoadSemaphore?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Cleanup error: {ex.Message}");
+            }
         }
         public void ShowAndRestore()
         {

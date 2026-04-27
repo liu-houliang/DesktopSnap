@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 
 namespace DesktopSnap
 {
@@ -28,6 +29,7 @@ namespace DesktopSnap
 
     public static class LayoutManager
     {
+        private static readonly object _autoSaveLock = new object();
         private static string _layoutsDirectory;
 
         static LayoutManager()
@@ -189,6 +191,16 @@ namespace DesktopSnap
 
         public static void ExportAllLayouts(string zipPath)
         {
+            // Safety: Ensure the zip is not being created inside the layouts directory itself
+            // to avoid recursive inclusion or file locking issues.
+            string fullZipPath = Path.GetFullPath(zipPath);
+            string layoutsDir = Path.GetFullPath(_layoutsDirectory);
+            if (fullZipPath.StartsWith(layoutsDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fullZipPath, layoutsDir, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Cannot export to a location inside the layouts directory.");
+            }
+
             if (File.Exists(zipPath)) File.Delete(zipPath);
             ZipFile.CreateFromDirectory(_layoutsDirectory, zipPath);
         }
@@ -241,42 +253,45 @@ namespace DesktopSnap
 
         public static void AutoSaveTemporary()
         {
-            var layouts = GetAllLayouts();
-            var autoSaves = layouts.Where(l => l.Id.StartsWith("auto_") || l.Id == "temp_auto_save").OrderByDescending(l => l.SavedAt).ToList();
-            var currentIcons = DesktopIconManager.GetIcons();
-
-            if (autoSaves.Count > 0)
+            lock (_autoSaveLock)
             {
-                var lastSaves = autoSaves.First();
-                if (lastSaves.Icons.Count == currentIcons.Count)
+                var layouts = GetAllLayouts();
+                var autoSaves = layouts.Where(l => l.Id.StartsWith("auto_") || l.Id == "temp_auto_save").OrderByDescending(l => l.SavedAt).ToList();
+                var currentIcons = DesktopIconManager.GetIcons();
+
+                if (autoSaves.Count > 0)
                 {
-                    var lastSet = new HashSet<string>(lastSaves.Icons.Select(i => $"{i.Name}_{i.X}_{i.Y}"));
-                    var currSet = new HashSet<string>(currentIcons.Select(i => $"{i.Name}_{i.X}_{i.Y}"));
-                    if (lastSet.SetEquals(currSet))
+                    var lastSaves = autoSaves.First();
+                    if (lastSaves.Icons.Count == currentIcons.Count)
                     {
-                        // No layout change since last auto-save, skip creating redundant backup
-                        return;
+                        var lastSet = new HashSet<string>(lastSaves.Icons.Select(i => $"{i.Name}_{i.X}_{i.Y}"));
+                        var currSet = new HashSet<string>(currentIcons.Select(i => $"{i.Name}_{i.X}_{i.Y}"));
+                        if (lastSet.SetEquals(currSet))
+                        {
+                            // No layout change since last auto-save, skip creating redundant backup
+                            return;
+                        }
                     }
                 }
-            }
 
-            // Keep up to 3 historic auto saves (we create a new one, so keep 2 existing)
-            if (autoSaves.Count >= 3)
-            {
-                for (int i = 2; i < autoSaves.Count; i++) // Delete 3rd and older
+                // Keep up to 3 historic auto saves (we create a new one, so keep 2 existing)
+                if (autoSaves.Count >= 3)
                 {
-                    DeleteLayout(autoSaves[i].Id);
+                    for (int i = 2; i < autoSaves.Count; i++) // Delete 3rd and older
+                    {
+                        DeleteLayout(autoSaves[i].Id);
+                    }
                 }
-            }
 
-            var newAutoSave = new DesktopLayout
-            {
-                Id = "auto_" + Guid.NewGuid().ToString(),
-                Name = I18n.Instance.AutoTempSave + $" ({DateTime.Now:MM-dd HH:mm})",
-                Icons = currentIcons,
-                CapturedDisplays = DisplayManager.GetDisplays()
-            };
-            SaveLayout(newAutoSave);
+                var newAutoSave = new DesktopLayout
+                {
+                    Id = "auto_" + Guid.NewGuid().ToString(),
+                    Name = I18n.Instance.AutoTempSave + $" ({DateTime.Now:MM-dd HH:mm})",
+                    Icons = currentIcons,
+                    CapturedDisplays = DisplayManager.GetDisplays()
+                };
+                SaveLayout(newAutoSave);
+            }
         }
     }
 }

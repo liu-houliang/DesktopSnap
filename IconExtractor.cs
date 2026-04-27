@@ -29,6 +29,9 @@ namespace DesktopSnap
         [DllImport("ole32.dll")]
         private static extern int CoInitializeEx(IntPtr pvReserved, uint dwCoInit);
 
+        [DllImport("ole32.dll")]
+        private static extern void CoUninitialize();
+
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
         public struct SHFILEINFO
         {
@@ -247,7 +250,7 @@ namespace DesktopSnap
             IntPtr hIcon = IntPtr.Zero;
 
             // Ensure COM is initialized on this thread (harmless if already initialized)
-            CoInitializeEx(IntPtr.Zero, 0x0 /* COINIT_APARTMENTTHREADED */);
+            int hrInit = CoInitializeEx(IntPtr.Zero, 0x0 /* COINIT_APARTMENTTHREADED */);
 
             try
             {
@@ -286,6 +289,13 @@ namespace DesktopSnap
                 }
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"IconExtractor Error: {ex}"); }
+            finally
+            {
+                if (hrInit >= 0)
+                {
+                    try { CoUninitialize(); } catch { }
+                }
+            }
 
             return hIcon;
         }

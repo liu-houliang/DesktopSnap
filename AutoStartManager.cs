@@ -87,20 +87,18 @@ namespace DesktopSnap
                     {
                         if (enable)
                         {
-                            // Using Process.GetCurrentProcess().MainModule.FileName is generally reliable for published apps.
-                            // However, we want the absolute path to ensure the registry key is solid.
-                            string exePath = Process.GetCurrentProcess().MainModule?.FileName;
+                            // Environment.ProcessPath is the most reliable way to get the current executable in .NET 6+
+                            string exePath = Environment.ProcessPath;
                             
-                            // Fallback if MainModule is null
+                            // Fallback if ProcessPath is null
                             if (string.IsNullOrEmpty(exePath))
                             {
-                                exePath = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "DesktopSnap.exe");
+                                exePath = Process.GetCurrentProcess().MainModule?.FileName;
                             }
 
-                            // Ensure we use the .exe file, as .dll cannot be executed directly by the registry Run key
-                            if (exePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                            if (string.IsNullOrEmpty(exePath))
                             {
-                                exePath = exePath.Substring(0, exePath.Length - 4) + ".exe";
+                                exePath = Path.Combine(AppContext.BaseDirectory, "DesktopSnap.exe");
                             }
 
                             // Enclose path in quotes to handle spaces; add --silent for tray-only startup

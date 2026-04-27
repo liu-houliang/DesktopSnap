@@ -64,18 +64,26 @@ namespace DesktopSnap
                 // For --silent mode, verify the existing instance is actually responsive.
                 if (isSilent)
                 {
-                    // Check if there's a real process running with our executable name
-                    var currentProcess = Process.GetCurrentProcess();
-                    var processes = Process.GetProcessesByName(currentProcess.ProcessName);
-                    int otherInstanceCount = processes.Count(p => p.Id != currentProcess.Id);
-                    
-                    // If no other real process found, this is a ghost instance registration.
-                    // Continue launching as the main instance.
-                    if (otherInstanceCount == 0)
+                    // More precise ghost detection: check if the process ID registered in AppInstance actually exists
+                    bool isGhost = false;
+                    try
                     {
-                        Debug.WriteLine("Auto-start detected ghost instance, continuing as main instance...");
+                        using (var p = Process.GetProcessById((int)mainInstance.ProcessId))
+                        {
+                            // Process exists, but is it US? (FindOrRegisterForKey might return an existing registration)
+                            // If it's not us and it's alive, it's a real duplicate.
+                        }
+                    }
+                    catch (ArgumentException)
+                    {
+                        // Process ID not found - definitely a ghost
+                        isGhost = true;
+                    }
+                    
+                    if (isGhost)
+                    {
+                        Debug.WriteLine("Auto-start detected ghost instance (process dead but key registered), continuing as main instance...");
                         isActingMainInstance = true;
-                        // Continue with initialization below (skip the exit)
                     }
                     else
                     {

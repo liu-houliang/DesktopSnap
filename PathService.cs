@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 
 namespace DesktopSnap
 {
@@ -13,6 +14,11 @@ namespace DesktopSnap
         // Cache sorted lists to avoid repeated sorting during runtime
         private static readonly List<KeyValuePair<string, string>> _sortedInverseTokens;
         private static readonly List<KeyValuePair<string, string>> _sortedTokens;
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+        private static extern int SHGetKnownFolderPath([MarshalAs(UnmanagedType.LPStruct)] Guid rfid, uint dwFlags, IntPtr hToken, out IntPtr ppszPath);
+
+        private static readonly Guid FolderDownloads = new Guid("374DE290-123F-4565-9164-39C4925E467B");
 
         static PathService()
         {
@@ -30,15 +36,27 @@ namespace DesktopSnap
             RegisterToken("{VIDEOS}", Environment.SpecialFolder.MyVideos);
             RegisterToken("{MUSIC}", Environment.SpecialFolder.MyMusic);
 
-            // Special handling for Downloads
+            // Special handling for Downloads using Win32 KnownFolders
             try
             {
-                string downloadsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-                if (Directory.Exists(downloadsPath))
+                IntPtr pszPath = IntPtr.Zero;
+                try
                 {
-                    string normalizedDownloads = downloadsPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                    _tokens["{DOWNLOADS}"] = normalizedDownloads;
-                    _inverseTokens[normalizedDownloads] = "{DOWNLOADS}";
+                    int hr = SHGetKnownFolderPath(FolderDownloads, 0, IntPtr.Zero, out pszPath);
+                    if (hr >= 0 && pszPath != IntPtr.Zero)
+                    {
+                        string downloadsPath = Marshal.PtrToStringUni(pszPath);
+                        if (!string.IsNullOrEmpty(downloadsPath) && Directory.Exists(downloadsPath))
+                        {
+                            string normalizedDownloads = downloadsPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                            _tokens["{DOWNLOADS}"] = normalizedDownloads;
+                            _inverseTokens[normalizedDownloads] = "{DOWNLOADS}";
+                        }
+                    }
+                }
+                finally
+                {
+                    if (pszPath != IntPtr.Zero) Marshal.FreeCoTaskMem(pszPath);
                 }
             }
             catch { }
@@ -71,7 +89,13 @@ namespace DesktopSnap
             {
                 if (path.StartsWith(kvp.Key, StringComparison.OrdinalIgnoreCase))
                 {
-                    return kvp.Value + path.Substring(kvp.Key.Length);
+                    // Ensure we only match full directory segments
+                    if (path.Length == kvp.Key.Length || 
+                        path[kvp.Key.Length] == Path.DirectorySeparatorChar || 
+                        path[kvp.Key.Length] == Path.AltDirectorySeparatorChar)
+                    {
+                        return kvp.Value + path.Substring(kvp.Key.Length);
+                    }
                 }
             }
 
@@ -86,7 +110,13 @@ namespace DesktopSnap
             {
                 if (path.StartsWith(kvp.Key, StringComparison.OrdinalIgnoreCase))
                 {
-                    return kvp.Value + path.Substring(kvp.Key.Length);
+                    // Ensure we only match full directory segments
+                    if (path.Length == kvp.Key.Length ||
+                        path[kvp.Key.Length] == Path.DirectorySeparatorChar ||
+                        path[kvp.Key.Length] == Path.AltDirectorySeparatorChar)
+                    {
+                        return kvp.Value + path.Substring(kvp.Key.Length);
+                    }
                 }
             }
 

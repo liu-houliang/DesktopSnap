@@ -126,9 +126,24 @@ namespace DesktopSnap
             AutoStartToggle.IsOn = settings.AutoStart;
             TrayAutoStartToggle.IsChecked = settings.AutoStart;
             AutoSaveOnDisplayChangeToggle.IsOn = settings.AutoSaveOnDisplayChange;
+            AutoUpdateToggle.IsOn = settings.EnableAutoUpdate;
             
             // Sync internal settings with actual system auto-start status
             _ = SyncAutoStartWithSystemAsync();
+
+            // ONLY auto-check updates for portable (non-packaged) version.
+            // Store version is handled by Microsoft Store automatically.
+            if (!AppEnv.IsPackaged && settings.EnableAutoUpdate && !isSilentStart)
+            {
+                _ = PerformUpdateCheckAsync(true);
+            }
+
+            if (AppEnv.IsPackaged)
+            {
+                if (AutoUpdateSettingRow != null) AutoUpdateSettingRow.Visibility = Visibility.Collapsed;
+                if (AutoUpdateSeparator != null) AutoUpdateSeparator.Visibility = Visibility.Collapsed;
+                if (CheckUpdateText != null) CheckUpdateText.Text = Lang.OpenStore;
+            }
 
             LayoutManager.AutoSaveTemporary();
             RefreshLayoutsList();
@@ -539,6 +554,153 @@ namespace DesktopSnap
             {
                 DetailPanel.Visibility = Visibility.Collapsed;
                 NoSelectionText.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void AutoUpdateToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (AutoUpdateToggle == null) return;
+            var settings = SettingsManager.Load();
+            if (settings.EnableAutoUpdate != AutoUpdateToggle.IsOn)
+            {
+                settings.EnableAutoUpdate = AutoUpdateToggle.IsOn;
+                SettingsManager.Save(settings);
+            }
+        }
+
+        private void CheckUpdateBtn_Click(object sender, RoutedEventArgs e)
+        {
+            AboutDialog.Hide();
+            if (AppEnv.IsPackaged)
+            {
+                // Packaged version: Just open the store page directly without checking GitHub
+                Process.Start(new ProcessStartInfo(Lang.StoreUrl) { UseShellExecute = true });
+            }
+            else
+            {
+                _ = PerformUpdateCheckAsync(false);
+            }
+        }
+
+        private async Task PerformUpdateCheckAsync(bool isAutoCheck)
+        {
+            var update = await UpdateManager.CheckForUpdateAsync();
+            if (update != null && update.IsNewer)
+            {
+                await ShowUpdateDialog(update);
+            }
+            else if (!isAutoCheck)
+            {
+                ShowStatus(InfoBarSeverity.Success, I18n.Instance.UpdateLatest);
+            }
+        }
+
+        private async Task ShowUpdateDialog(UpdateInfo update)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = I18n.Instance.UpdateAvailable,
+                Content = new StackPanel
+                {
+                    Spacing = 10,
+                    Children = {
+                        new TextBlock { 
+                            Text = string.Format(AppEnv.IsPackaged ? I18n.Instance.UpdatePackagedTip : I18n.Instance.UpdatePortableTip, update.Version),
+                            TextWrapping = TextWrapping.Wrap 
+                        },
+                        new ScrollViewer {
+                            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                            MaxHeight = 300,
+                            Content = new TextBlock { 
+                                Text = ParseReleaseNotes(update.ReleaseNotes), 
+                                FontSize = 12, 
+                                Opacity = 0.7, 
+                                TextWrapping = TextWrapping.Wrap
+                            }
+                        }
+                    }
+                },
+                PrimaryButtonText = AppEnv.IsPackaged ? I18n.Instance.OpenStore : I18n.Instance.UpdateNow,
+                SecondaryButtonText = I18n.Instance.UpdateIgnore,
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = this.Content.XamlRoot,
+                RequestedTheme = ElementTheme.Dark
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                if (AppEnv.IsPackaged)
+                {
+                    Process.Start(new ProcessStartInfo(Lang.StoreUrl) { UseShellExecute = true });
+                }
+                else
+                {
+                    await DownloadAndApplyUpdate(update);
+                }
+            }
+        }
+
+        private string ParseReleaseNotes(string notes)
+        {
+            if (string.IsNullOrEmpty(notes)) return "";
+            
+            // Look for standard Markdown horizontal rule separator
+            var parts = notes.Split(new[] { "---" }, StringSplitOptions.None);
+            if (parts.Length < 2) return notes.Trim();
+
+            // Part 0 is Chinese (top), Part 1 is English (bottom)
+            string result = I18n.Instance.CurrentLanguage == "zh" ? parts[0] : parts[1];
+            return result.Trim();
+        }
+
+        private async Task DownloadAndApplyUpdate(UpdateInfo update)
+        {
+            if (string.IsNullOrEmpty(update.DownloadUrl))
+            {
+                ShowStatus(InfoBarSeverity.Error, I18n.Instance.L("No download link found in this release."));
+                return;
+            }
+
+            var progressDialog = new ContentDialog
+            {
+                Title = I18n.Instance.UpdateDownloading,
+                Content = new StackPanel
+                {
+                    Spacing = 10,
+                    Children = {
+                        new ProgressBar { Minimum = 0, Maximum = 100, IsIndeterminate = true, Width = 300 }
+                    }
+                },
+                XamlRoot = this.Content.XamlRoot,
+                RequestedTheme = ElementTheme.Dark
+            };
+
+            var progressBar = (progressDialog.Content as StackPanel).Children[0] as ProgressBar;
+            
+            // Show the dialog without waiting (we'll hide it later)
+            var dialogTask = progressDialog.ShowAsync();
+
+            var zipPath = await UpdateManager.DownloadUpdateAsync(update.DownloadUrl, p => 
+            {
+                this.DispatcherQueue.TryEnqueue(() => 
+                {
+                    progressBar.IsIndeterminate = false;
+                    progressBar.Value = p * 100;
+                });
+            });
+
+            progressDialog.Hide();
+
+            if (!string.IsNullOrEmpty(zipPath))
+            {
+                ShowStatus(InfoBarSeverity.Success, I18n.Instance.UpdateDownloadSuccess);
+                await Task.Delay(1000);
+                UpdateManager.ApplyUpdatePortable(zipPath);
+            }
+            else
+            {
+                ShowStatus(InfoBarSeverity.Error, I18n.Instance.UpdateFailed);
             }
         }
 

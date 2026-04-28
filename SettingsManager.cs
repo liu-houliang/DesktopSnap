@@ -14,6 +14,7 @@ namespace DesktopSnap
         public bool IsFirstRun { get; set; } = true;
         public bool HasShownTrayNotification { get; set; } = false;
         public bool AutoSaveOnDisplayChange { get; set; } = false;
+        public bool EnableAutoUpdate { get; set; } = true;
     }
 
     public static class SettingsManager

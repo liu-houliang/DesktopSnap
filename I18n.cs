@@ -105,6 +105,18 @@ namespace DesktopSnap
         public string Step4Description => L("Step4Description");
         public string TryNewSnapshot => L("TryNewSnapshot");
         public string GetStarted => L("GetStarted");
+        public string OpenStore => L("OpenStore");
+        public string CheckForUpdates => L("CheckForUpdates");
+        public string UpdateAvailable => L("UpdateAvailable");
+        public string UpdateDownloading => L("UpdateDownloading");
+        public string UpdateDownloadSuccess => L("UpdateDownloadSuccess");
+        public string UpdateFailed => L("UpdateFailed");
+        public string UpdateLatest => L("UpdateLatest");
+        public string UpdateNow => L("UpdateNow");
+        public string UpdateIgnore => L("UpdateIgnore");
+        public string UpdatePortableTip => L("UpdatePortableTip");
+        public string UpdatePackagedTip => L("UpdatePackagedTip");
+        public string UpdateAutoCheck => L("UpdateAutoCheck");
 
         // About dialog
         public string About => L("About");
@@ -122,6 +134,7 @@ namespace DesktopSnap
         public string HomepageUrl => _currentLanguage == "zh" ? "https://liuhouliang.com" : "https://liuhouliang.com/en";
         public string WebsiteUrl => _currentLanguage == "zh" ? "https://desktopsnap.liuhouliang.com" : "https://desktopsnap.liuhouliang.com/en";
         public string GitHubUrl => "https://github.com/liu-houliang/DesktopSnap";
+        public string StoreUrl => "ms-windows-store://pdp/?productid=9n88rj6d0js3";
 
         public string L(string key)
         {
@@ -236,7 +249,19 @@ namespace DesktopSnap
                 { "AutoSaveOnDisplayChangeDescription", "当分辨率或显示器变动后，自动保存变更后的新布局" },
                 { "DisplayChangeAutoSaveName", "自动: 环境变动" },
                 { "DetectedDisplayChange", "检测到显示器环境变动，已自动为您备份当前布局。" },
-                { "System restricted auto-start. Opening Task Manager...", "系统权限限制，已被手动禁用。正在为您打开任务管理器，请手动允许。" }
+                { "OpenStore", "去商店更新" },
+                { "System restricted auto-start. Opening Task Manager...", "系统权限限制，已被手动禁用。正在为您打开任务管理器，请手动允许。" },
+                { "CheckForUpdates", "检查更新" },
+                { "UpdateAvailable", "发现新版本" },
+                { "UpdateDownloading", "正在下载更新..." },
+                { "UpdateDownloadSuccess", "下载完成，准备安装..." },
+                { "UpdateFailed", "更新失败" },
+                { "UpdateLatest", "已是最新版本" },
+                { "UpdateNow", "立即更新" },
+                { "UpdateIgnore", "以后再说" },
+                { "UpdatePortableTip", "检测到新版本 {0}。点击“立即更新”将自动下载并重启应用。" },
+                { "UpdatePackagedTip", "检测到新版本 {0}。由于您正在使用微软商店版本，请前往商店进行更新。" },
+                { "UpdateAutoCheck", "自动检查更新" }
             } },
             { "en", new Dictionary<string, string> {
                 { "AppTitle", "Desktop Snap" },
@@ -336,7 +361,19 @@ namespace DesktopSnap
                 { "AutoSaveOnDisplayChangeDescription", "Automatically save the layout after displays change." },
                 { "DisplayChangeAutoSaveName", "Auto: Display Change" },
                 { "DetectedDisplayChange", "Display environment change detected. Current layout has been auto-saved." },
-                { "System restricted auto-start. Opening Task Manager...", "System restricted auto-start. Opening Task Manager for you to enable manually." }
+                { "OpenStore", "Go to Store" },
+                { "System restricted auto-start. Opening Task Manager...", "System restricted auto-start. Opening Task Manager for you to enable manually." },
+                { "CheckForUpdates", "Check for Updates" },
+                { "UpdateAvailable", "Update Available" },
+                { "UpdateDownloading", "Downloading update..." },
+                { "UpdateDownloadSuccess", "Download complete, preparing to install..." },
+                { "UpdateFailed", "Update Failed" },
+                { "UpdateLatest", "You are up to date" },
+                { "UpdateNow", "Update Now" },
+                { "UpdateIgnore", "Remind Me Later" },
+                { "UpdatePortableTip", "A new version {0} is available. Click 'Update Now' to automatically download and restart the application." },
+                { "UpdatePackagedTip", "A new version {0} is available. Since you are using the Microsoft Store version, please update via the Store." },
+                { "UpdateAutoCheck", "Check for updates automatically" }
             } }
         };
 

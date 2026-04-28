@@ -451,6 +451,13 @@
                             <TextBlock Text="{x:Bind Lang.AboutGitHub, Mode=OneWay}" FontSize="12" />
                         </StackPanel>
                     </HyperlinkButton>
+                    <TextBlock Text="·" Opacity="0.3" VerticalAlignment="Center" Margin="2,0" />
+                    <HyperlinkButton x:Name="CheckUpdateBtn" Click="CheckUpdateBtn_Click" Padding="4,4">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE777;" FontSize="13" />
+                            <TextBlock x:Name="CheckUpdateText" Text="{x:Bind Lang.CheckForUpdates, Mode=OneWay}" FontSize="12" />
+                        </StackPanel>
+                    </HyperlinkButton>
                 </StackPanel>
 
             </StackPanel>
@@ -518,6 +525,25 @@
                     <ToggleSwitch Grid.Column="2" x:Name="AutoSaveOnDisplayChangeToggle" 
                                   OffContent="" OnContent=""
                                   Toggled="AutoSaveOnDisplayChangeToggle_Toggled"
+                                  VerticalAlignment="Center"
+                                  MinWidth="50" />
+                </Grid>
+
+                <Rectangle x:Name="AutoUpdateSeparator" Height="1" Fill="#11ffffff" HorizontalAlignment="Stretch" />
+
+                <Grid x:Name="AutoUpdateSettingRow" ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE895;" FontSize="20" Foreground="#88ffffff" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                        <TextBlock Text="{x:Bind Lang.UpdateAutoCheck, Mode=OneWay}" FontWeight="SemiBold" FontSize="14" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" x:Name="AutoUpdateToggle" 
+                                  OffContent="" OnContent=""
+                                  Toggled="AutoUpdateToggle_Toggled"
                                   VerticalAlignment="Center"
                                   MinWidth="50" />
                 </Grid>

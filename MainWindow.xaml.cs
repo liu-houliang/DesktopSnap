@@ -503,10 +503,13 @@ namespace DesktopSnap
                 DetailNameText.Text = layout.Name;
                 DetailCountText.Text = $"{Lang.ContainsIconsPrefix}{layout.Icons.Count}{Lang.ContainsIconsSuffix}";
 
-                if (layout.Id.StartsWith("auto_") || layout.Id == "temp_auto_save")
+                bool isAutoSave = layout.Id.StartsWith("auto_") || layout.Id == "temp_auto_save";
+                if (isAutoSave)
                 {
                     RenameBtn.Visibility = Visibility.Collapsed;
-                    DeleteSnapshotBtn.Visibility = Visibility.Collapsed;
+                    // 自动保存布局允许删除，但只剩一个时不允许删除
+                    int autoSaveCount = LayoutsListView.Items.Cast<DesktopLayout>().Count(l => l.Id.StartsWith("auto_") || l.Id == "temp_auto_save");
+                    DeleteSnapshotBtn.Visibility = autoSaveCount > 1 ? Visibility.Visible : Visibility.Collapsed;
                 }
                 else
                 {

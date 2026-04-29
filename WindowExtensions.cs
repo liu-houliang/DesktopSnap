@@ -16,7 +16,19 @@ namespace DesktopSnap
         public static void Show(this Window window)
         {
             var appWindow = GetAppWindow(window);
-            appWindow?.Show();
+            if (appWindow == null) return;
+
+            // If the window is minimized, restore it
+            if (appWindow.Presenter is OverlappedPresenter overlapped)
+            {
+                if (overlapped.State == OverlappedPresenterState.Minimized)
+                {
+                    overlapped.Restore();
+                }
+            }
+
+            appWindow.Show();
+            window.Activate();
         }
 
         private static AppWindow GetAppWindow(Window window)

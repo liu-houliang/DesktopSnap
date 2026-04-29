@@ -1462,7 +1462,6 @@ namespace DesktopSnap
             }
 
             this.Show();
-            appWindow.Show();
         }
 
         [CommunityToolkit.Mvvm.Input.RelayCommand]

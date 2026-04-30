@@ -261,7 +261,9 @@ namespace DesktopSnap
                 { "UpdateIgnore", "以后再说" },
                 { "UpdatePortableTip", "检测到新版本 {0}。点击“立即更新”将自动下载并重启应用。" },
                 { "UpdatePackagedTip", "检测到新版本 {0}。由于您正在使用微软商店版本，请前往商店进行更新。" },
-                { "UpdateAutoCheck", "自动检查更新" }
+                { "UpdateAutoCheck", "自动检查更新" },
+                { "HiddenCount", "，其中 {0} 个已隐藏" },
+                { "VisibilityFailed", "权限不足导致显隐失败:" }
             } },
             { "en", new Dictionary<string, string> {
                 { "AppTitle", "Desktop Snap" },
@@ -373,7 +375,9 @@ namespace DesktopSnap
                 { "UpdateIgnore", "Remind Me Later" },
                 { "UpdatePortableTip", "A new version {0} is available. Click 'Update Now' to automatically download and restart the application." },
                 { "UpdatePackagedTip", "A new version {0} is available. Since you are using the Microsoft Store version, please update via the Store." },
-                { "UpdateAutoCheck", "Check for updates automatically" }
+                { "UpdateAutoCheck", "Check for updates automatically" },
+                { "HiddenCount", ", including {0} hidden" },
+                { "VisibilityFailed", "Visibility change failed (Permission Denied):" }
             } }
         };
 

@@ -25,6 +25,8 @@ namespace DesktopSnap
         public int ImageIndex { get; set; } = -1;
         [JsonIgnore]
         public bool HasShortcutOverlay { get; set; }
+        
+        public bool IsHidden { get; set; }
     }
 
     public class RestoreResult
@@ -32,6 +34,7 @@ namespace DesktopSnap
         public int Repositioned { get; set; }
         public int Recreated { get; set; }
         public List<string> MissingFiles { get; set; } = new List<string>();
+        public List<string> FailedVisibilityFiles { get; set; } = new List<string>();
         public int ExtraIcons { get; set; }  // Icons on desktop not in snapshot
         public bool AutoArrangeEnabled { get; set; } // Detected auto-arrange state
     }
@@ -349,6 +352,9 @@ namespace DesktopSnap
 
                     if (!string.IsNullOrEmpty(name))
                     {
+                        if (name.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase) || 
+                            name.Equals("thumbs.db", StringComparison.OrdinalIgnoreCase)) continue;
+
                         icons.Add(new IconInfo { 
                             Name = name, 
                             X = pt.x, 
@@ -371,7 +377,118 @@ namespace DesktopSnap
             // Resolve file paths and shortcut metadata
             ResolveFilePaths(icons);
 
+            // ===== GHOST STITCHING (Hidden Files) =====
+            StitchHiddenFiles(icons);
+
             return icons;
+        }
+
+        private static void StitchHiddenFiles(List<IconInfo> icons)
+        {
+            try
+            {
+                var existingPaths = new HashSet<string>(icons.Where(i => !string.IsNullOrEmpty(i.FilePath)).Select(i => i.FilePath), StringComparer.OrdinalIgnoreCase);
+                var hiddenFiles = new List<string>();
+
+                string publicDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
+                string userDesktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+
+                Action<string> scanDir = (dir) =>
+                {
+                    if (!Directory.Exists(dir)) return;
+                    try
+                    {
+                        foreach (var path in Directory.GetFileSystemEntries(dir))
+                        {
+                            string fileName = Path.GetFileName(path);
+                            if (fileName.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase) || 
+                                fileName.Equals("thumbs.db", StringComparison.OrdinalIgnoreCase)) continue;
+
+                            if (existingPaths.Contains(path)) continue; // Already in SysListView32
+                            
+                            var attrs = File.GetAttributes(path);
+                            if ((attrs & FileAttributes.Hidden) == FileAttributes.Hidden)
+                            {
+                                hiddenFiles.Add(path);
+                            }
+                        }
+                    }
+                    catch { }
+                };
+
+                scanDir(publicDesktop);
+                scanDir(userDesktop);
+
+                if (hiddenFiles.Count == 0) return;
+
+                // We have hidden files that were NOT in SysListView32 (meaning "Show hidden files" is OFF)
+                // Fetch the latest layout to stitch their historical coordinates
+                var latestLayout = LayoutManager.GetAllLayouts().OrderByDescending(l => l.SavedAt).FirstOrDefault();
+                var historyDict = new Dictionary<string, IconInfo>(StringComparer.OrdinalIgnoreCase);
+                if (latestLayout != null && latestLayout.Icons != null)
+                {
+                    foreach (var hi in latestLayout.Icons)
+                    {
+                        if (!string.IsNullOrEmpty(hi.FilePath))
+                        {
+                            historyDict[hi.FilePath] = hi;
+                        }
+                    }
+                }
+
+                foreach (var hiddenFile in hiddenFiles)
+                {
+                    var newIcon = new IconInfo
+                    {
+                        Name = Path.GetFileName(hiddenFile),
+                        FilePath = hiddenFile,
+                        IsHidden = true,
+                        HasShortcutOverlay = hiddenFile.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)
+                    };
+
+                    if (historyDict.TryGetValue(hiddenFile, out var historicalIcon))
+                    {
+                        // Ghost Stitching: inherit historical position
+                        newIcon.X = historicalIcon.X;
+                        newIcon.Y = historicalIcon.Y;
+                        AppendLog($"Ghost Stitching: Recovered historical position ({newIcon.X}, {newIcon.Y}) for hidden file {newIcon.Name}\n");
+                    }
+                    else
+                    {
+                        // New hidden file: send to the shadow realm (edge of desktop)
+                        newIcon.X = -9999;
+                        newIcon.Y = -9999;
+                        AppendLog($"Ghost Stitching: Assigned edge position for new hidden file {newIcon.Name}\n");
+                    }
+
+                    // For shortcuts, we also need to extract target etc if we want it to be perfectly restorable
+                    if (newIcon.HasShortcutOverlay)
+                    {
+                        try
+                        {
+                            var shellType = Type.GetTypeFromProgID("WScript.Shell");
+                            if (shellType != null)
+                            {
+                                dynamic shell = Activator.CreateInstance(shellType);
+                                dynamic shortcut = shell.CreateShortcut(hiddenFile);
+                                newIcon.ShortcutTarget = shortcut.TargetPath;
+                                newIcon.ShortcutArgs = shortcut.Arguments;
+                                newIcon.ShortcutIconLocation = shortcut.IconLocation;
+                                newIcon.ShortcutWorkingDir = shortcut.WorkingDirectory;
+                                Marshal.ReleaseComObject(shortcut);
+                                Marshal.ReleaseComObject(shell);
+                            }
+                        }
+                        catch { }
+                    }
+
+                    icons.Add(newIcon);
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Ghost Stitching Error: {ex.Message}\n");
+            }
         }
 
         private static void ResolveFilePaths(List<IconInfo> icons)
@@ -482,30 +599,36 @@ namespace DesktopSnap
                         icon.FilePath = bestMatch;
                         claimedPaths.Add(bestMatch);
                         
-                        // Fix the name if it was hidden by Explorer settings
-                        string realName = Path.GetFileName(bestMatch);
-                        if (!realName.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
-                        {
-                            icon.Name = realName;
-                        }
+                        // Use the exact physical filename for JSON precision
+                        icon.Name = Path.GetFileName(bestMatch);
                     }
                 }
                 
-                // Read shortcut properties if it's a shortcut
-                if (!string.IsNullOrEmpty(icon.FilePath) && icon.FilePath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrEmpty(icon.FilePath))
                 {
-                    if (shell != null)
+                    try
                     {
-                        try
+                        var attrs = File.GetAttributes(icon.FilePath);
+                        icon.IsHidden = (attrs & FileAttributes.Hidden) == FileAttributes.Hidden;
+                    }
+                    catch { }
+
+                    // Read shortcut properties if it's a shortcut
+                    if (icon.FilePath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (shell != null)
                         {
-                            dynamic shortcut = shell.CreateShortcut(icon.FilePath);
-                            icon.ShortcutTarget = shortcut.TargetPath;
-                            icon.ShortcutArgs = shortcut.Arguments;
-                            icon.ShortcutIconLocation = shortcut.IconLocation;
-                            icon.ShortcutWorkingDir = shortcut.WorkingDirectory;
-                            Marshal.ReleaseComObject(shortcut);
+                            try
+                            {
+                                dynamic shortcut = shell.CreateShortcut(icon.FilePath);
+                                icon.ShortcutTarget = shortcut.TargetPath;
+                                icon.ShortcutArgs = shortcut.Arguments;
+                                icon.ShortcutIconLocation = shortcut.IconLocation;
+                                icon.ShortcutWorkingDir = shortcut.WorkingDirectory;
+                                Marshal.ReleaseComObject(shortcut);
+                            }
+                            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"DesktopIconManager Error: {ex}"); }
                         }
-                        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"DesktopIconManager Error: {ex}"); }
                     }
                 }
             }
@@ -572,6 +695,7 @@ namespace DesktopSnap
             
             // Get current desktop icon names as a list to handle duplicates (only needed for system icons now)
             var currentNames = GetCurrentIconNames(listView, pid);
+            bool visibilityChanged = false;
 
             foreach (var icon in icons)
             {
@@ -587,6 +711,29 @@ namespace DesktopSnap
                 {
                     // For system icons without paths, check if the displayed name exists
                     isMissing = !currentNames.Contains(icon.Name);
+                }
+
+                // Restore FileAttributes.Hidden state if applicable
+                if (!isMissing && !string.IsNullOrEmpty(icon.FilePath))
+                {
+                    try
+                    {
+                        var attrs = File.GetAttributes(icon.FilePath);
+                        bool isCurrentlyHidden = (attrs & FileAttributes.Hidden) == FileAttributes.Hidden;
+                        if (isCurrentlyHidden != icon.IsHidden)
+                        {
+                            visibilityChanged = true;
+                            if (icon.IsHidden)
+                                File.SetAttributes(icon.FilePath, attrs | FileAttributes.Hidden);
+                            else
+                                File.SetAttributes(icon.FilePath, attrs & ~FileAttributes.Hidden);
+                        }
+                    }
+                    catch (Exception ex) 
+                    { 
+                        AppendLog($"Failed to set hidden attribute for {icon.Name}: {ex.Message}");
+                        result.FailedVisibilityFiles.Add(icon.Name);
+                    }
                 }
 
                 // 2. Process missing status
@@ -619,6 +766,17 @@ namespace DesktopSnap
                                 shortcut.Save();
                                 Marshal.ReleaseComObject(shortcut);
                                 Marshal.ReleaseComObject(shell);
+
+                                if (icon.IsHidden && File.Exists(targetPath))
+                                {
+                                    try
+                                    {
+                                        var attrs = File.GetAttributes(targetPath);
+                                        File.SetAttributes(targetPath, attrs | FileAttributes.Hidden);
+                                    }
+                                    catch { }
+                                }
+
                                 result.Recreated++;
                                 AppendLog($"Recreated shortcut: {icon.Name}\n");
                                 // Add to current names so we don't recreate it again if there are more duplicates
@@ -653,13 +811,10 @@ namespace DesktopSnap
                 }
             }
 
-            // ===== PHASE 2: Wait for Explorer to register new shortcuts, then re-enumerate =====
-            if (result.Recreated > 0)
+            // ===== PHASE 2: Wait for Explorer to register new shortcuts/visibility changes, then re-enumerate =====
+            if (result.Recreated > 0 || visibilityChanged)
             {
-                // WScript.Shell.Save() automatically sends a shell change notification.
-                // Sending legacy WM_COMMAND (0x7103) to Progman on Win11 steals focus to a hidden window,
-                // breaking desktop keyboard shortcuts (Del, Ctrl+C, etc).
-                // We just need to wait for Explorer to process the creation.
+                // WScript.Shell.Save() and File.SetAttributes both need time for Explorer to update SysListView32.
                 System.Threading.Thread.Sleep(1200); 
             }
 
@@ -755,6 +910,12 @@ namespace DesktopSnap
 
                     if (!string.IsNullOrEmpty(name))
                     {
+                        if (name.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase) || 
+                            name.Equals("thumbs.db", StringComparison.OrdinalIgnoreCase)) 
+                        {
+                            currentDesktopIcons.Add(null);
+                            continue;
+                        }
                         int currentImageIndex = -1;
                         uint state = 0;
                         if (Environment.Is64BitOperatingSystem)
@@ -857,6 +1018,17 @@ namespace DesktopSnap
                             if (index != -1)
                             {
                                 usedIndices.Add(index);
+
+                                // If the icon has no historical coordinates (-9999, -9999), it means it was a new hidden file.
+                                // We MUST NOT send -9999 to SysListView32, otherwise Windows clamps it to (0,0) (top-left corner).
+                                // By skipping the SETITEMPOSITION call, we let it stay where Windows naturally placed it.
+                                if (icon.X == -9999 && icon.Y == -9999)
+                                {
+                                    AppendLog($"Skipping position setting for {icon.Name} because it has no historical coordinates (-9999, -9999).\n");
+                                    result.Repositioned++; // Count as successfully processed
+                                    continue;
+                                }
+
                                 POINT pt = new POINT { x = icon.X, y = icon.Y };
                                 int pointSize = Marshal.SizeOf(typeof(POINT));
                                 IntPtr localPt = Marshal.AllocHGlobal(pointSize);

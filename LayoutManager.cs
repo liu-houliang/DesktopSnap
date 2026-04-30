@@ -124,7 +124,8 @@ namespace DesktopSnap
                     ShortcutTarget = PathService.Normalize(i.ShortcutTarget),
                     ShortcutArgs = i.ShortcutArgs,
                     ShortcutIconLocation = PathService.Normalize(i.ShortcutIconLocation),
-                    ShortcutWorkingDir = PathService.Normalize(i.ShortcutWorkingDir)
+                    ShortcutWorkingDir = PathService.Normalize(i.ShortcutWorkingDir),
+                    IsHidden = i.IsHidden
                 }).ToList()
             };
 

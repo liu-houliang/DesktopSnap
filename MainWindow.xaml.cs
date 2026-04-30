@@ -342,7 +342,7 @@ namespace DesktopSnap
                         {
                             LayoutsListView.SelectedItem = updatedLayout;
                             DetailNameText.Text = updatedLayout.Name;
-                            DetailCountText.Text = $"{Lang.ContainsIconsPrefix}{updatedLayout.Icons.Count}{Lang.ContainsIconsSuffix}";
+                            DetailCountText.Text = GetIconCountSummary(updatedLayout);
                             DrawPreview(updatedLayout);
                         }
                     }
@@ -501,7 +501,7 @@ namespace DesktopSnap
                 StatusInfo.IsOpen = false;
 
                 DetailNameText.Text = layout.Name;
-                DetailCountText.Text = $"{Lang.ContainsIconsPrefix}{layout.Icons.Count}{Lang.ContainsIconsSuffix}";
+                DetailCountText.Text = GetIconCountSummary(layout);
 
                 bool isAutoSave = layout.Id.StartsWith("auto_") || layout.Id == "temp_auto_save";
                 if (isAutoSave)
@@ -558,6 +558,20 @@ namespace DesktopSnap
                 DetailPanel.Visibility = Visibility.Collapsed;
                 NoSelectionText.Visibility = Visibility.Visible;
             }
+        }
+
+        private string GetIconCountSummary(DesktopLayout layout)
+        {
+            if (layout == null || layout.Icons == null) return "";
+            int total = layout.Icons.Count;
+            int hidden = layout.Icons.Count(i => i.IsHidden);
+
+            string baseMsg = $"{I18n.Instance.L("ContainsIconsPrefix")}{total}{I18n.Instance.L("ContainsIconsSuffix")}";
+            if (hidden > 0)
+            {
+                baseMsg += string.Format(I18n.Instance.L("HiddenCount"), hidden);
+            }
+            return baseMsg;
         }
 
         private void AutoUpdateToggle_Toggled(object sender, RoutedEventArgs e)
@@ -944,9 +958,15 @@ namespace DesktopSnap
                 iconGrid.HorizontalAlignment = HorizontalAlignment.Center;
                 container.Children.Add(iconGrid);
 
+                string displayName = icon.Name;
+                if (!string.IsNullOrEmpty(displayName) && displayName.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
+                {
+                    displayName = System.IO.Path.GetFileNameWithoutExtension(displayName);
+                }
+
                 var tb = new TextBlock
                 {
-                    Text = icon.Name,
+                    Text = displayName,
                     FontSize = fontSize,
                     Foreground = new SolidColorBrush(Color.FromArgb(255, 230, 230, 230)),
                     Width = 60 * iconScale,
@@ -958,6 +978,11 @@ namespace DesktopSnap
                     MaxHeight = fontSize * 3.2 // Safety height to prevent vertical bleeding
                 };
                 container.Children.Add(tb);
+
+                if (icon.IsHidden)
+                {
+                    container.Opacity = 0.5;
+                }
 
                 ToolTipService.SetToolTip(container, icon.Name);
                 
@@ -1401,6 +1426,7 @@ namespace DesktopSnap
                     msg.Append($"{I18n.Instance.L("Repositioned:")} {result.Repositioned}");
                     if (result.Recreated > 0) msg.Append($" | {I18n.Instance.L("Shortcuts recreated:")} {result.Recreated}");
                     if (result.MissingFiles.Count > 0) msg.Append($" | {I18n.Instance.L("Cannot restore:")} {string.Join(", ", result.MissingFiles)}");
+                    if (result.FailedVisibilityFiles.Count > 0) msg.Append($"\n\n{I18n.Instance.L("VisibilityFailed")} {string.Join(", ", result.FailedVisibilityFiles)}");
                     if (result.ExtraIcons > 0) msg.Append($" | {I18n.Instance.L("Extra icons on desktop:")} {result.ExtraIcons}");
 
                     if (result.AutoArrangeEnabled)
@@ -1410,7 +1436,8 @@ namespace DesktopSnap
                     }
                     else
                     {
-                        ShowStatus(result.MissingFiles.Count > 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success, msg.ToString());
+                        bool hasWarning = result.MissingFiles.Count > 0 || result.FailedVisibilityFiles.Count > 0;
+                        ShowStatus(hasWarning ? InfoBarSeverity.Warning : InfoBarSeverity.Success, msg.ToString());
                     }
                     DrawPreview(layout);
                 }

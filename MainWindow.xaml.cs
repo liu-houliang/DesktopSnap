@@ -131,18 +131,17 @@ namespace DesktopSnap
             // Sync internal settings with actual system auto-start status
             _ = SyncAutoStartWithSystemAsync();
 
-            // ONLY auto-check updates for portable (non-packaged) version.
-            // Store version is handled by Microsoft Store automatically.
             if (!AppEnv.IsPackaged && settings.EnableAutoUpdate && !isSilentStart)
             {
-                _ = PerformUpdateCheckAsync(true);
-            }
-
-            if (AppEnv.IsPackaged)
-            {
-                if (AutoUpdateSettingRow != null) AutoUpdateSettingRow.Visibility = Visibility.Collapsed;
-                if (AutoUpdateSeparator != null) AutoUpdateSeparator.Visibility = Visibility.Collapsed;
-                if (CheckUpdateText != null) CheckUpdateText.Text = Lang.OpenStore;
+                // Defer the auto-check to ensure the window is fully initialized and XamlRoot is available
+                Task.Run(async () =>
+                {
+                    await Task.Delay(2000);
+                    this.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        _ = PerformUpdateCheckAsync(true);
+                    });
+                });
             }
 
             LayoutManager.AutoSaveTemporary();
@@ -588,20 +587,22 @@ namespace DesktopSnap
         private void CheckUpdateBtn_Click(object sender, RoutedEventArgs e)
         {
             AboutDialog.Hide();
-            if (AppEnv.IsPackaged)
-            {
-                // Packaged version: Just open the store page directly without checking GitHub
-                Process.Start(new ProcessStartInfo(Lang.StoreUrl) { UseShellExecute = true });
-            }
-            else
-            {
-                _ = PerformUpdateCheckAsync(false);
-            }
+            _ = PerformUpdateCheckAsync(false);
         }
 
         private async Task PerformUpdateCheckAsync(bool isAutoCheck)
         {
-            var update = await UpdateManager.CheckForUpdateAsync();
+            UpdateInfo update = null;
+            if (AppEnv.IsPackaged)
+            {
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                update = await UpdateManager.CheckStoreUpdateAsync(hwnd);
+            }
+            else
+            {
+                update = await UpdateManager.CheckForUpdateAsync();
+            }
+
             if (update != null && update.IsNewer)
             {
                 await ShowUpdateDialog(update);
@@ -614,6 +615,14 @@ namespace DesktopSnap
 
         private async Task ShowUpdateDialog(UpdateInfo update)
         {
+            var settings = SettingsManager.Load();
+            var disableAutoUpdateCheck = new CheckBox
+            {
+                Content = I18n.Instance.DisableAutoUpdate,
+                Margin = new Thickness(0, 10, 0, 0),
+                IsChecked = !settings.EnableAutoUpdate
+            };
+
             var dialog = new ContentDialog
             {
                 Title = I18n.Instance.UpdateAvailable,
@@ -634,7 +643,8 @@ namespace DesktopSnap
                                 Opacity = 0.7, 
                                 TextWrapping = TextWrapping.Wrap
                             }
-                        }
+                        },
+                        disableAutoUpdateCheck
                     }
                 },
                 PrimaryButtonText = AppEnv.IsPackaged ? I18n.Instance.OpenStore : I18n.Instance.UpdateNow,
@@ -645,6 +655,18 @@ namespace DesktopSnap
             };
 
             var result = await dialog.ShowAsync();
+
+            bool newDisableState = disableAutoUpdateCheck.IsChecked == true;
+            if (newDisableState != !settings.EnableAutoUpdate)
+            {
+                settings.EnableAutoUpdate = !newDisableState;
+                SettingsManager.Save(settings);
+                if (AutoUpdateToggle != null)
+                {
+                    AutoUpdateToggle.IsOn = settings.EnableAutoUpdate;
+                }
+            }
+
             if (result == ContentDialogResult.Primary)
             {
                 if (AppEnv.IsPackaged)

@@ -117,6 +117,8 @@ namespace DesktopSnap
         public string UpdatePortableTip => L("UpdatePortableTip");
         public string UpdatePackagedTip => L("UpdatePackagedTip");
         public string UpdateAutoCheck => L("UpdateAutoCheck");
+        public string DisableAutoUpdate => L("DisableAutoUpdate");
+        public string StoreUpdateNotes => L("StoreUpdateNotes");
 
         // About dialog
         public string About => L("About");
@@ -262,6 +264,8 @@ namespace DesktopSnap
                 { "UpdatePortableTip", "检测到新版本 {0}。点击“立即更新”将自动下载并重启应用。" },
                 { "UpdatePackagedTip", "检测到新版本 {0}。由于您正在使用微软商店版本，请前往商店进行更新。" },
                 { "UpdateAutoCheck", "自动检查更新" },
+                { "DisableAutoUpdate", "不再自动检查更新" },
+                { "StoreUpdateNotes", "请前往 Microsoft Store 查看详细发行说明。" },
                 { "HiddenCount", "，其中 {0} 个已隐藏" },
                 { "VisibilityFailed", "权限不足导致显隐失败:" }
             } },
@@ -376,6 +380,8 @@ namespace DesktopSnap
                 { "UpdatePortableTip", "A new version {0} is available. Click 'Update Now' to automatically download and restart the application." },
                 { "UpdatePackagedTip", "A new version {0} is available. Since you are using the Microsoft Store version, please update via the Store." },
                 { "UpdateAutoCheck", "Check for updates automatically" },
+                { "DisableAutoUpdate", "Don't check automatically" },
+                { "StoreUpdateNotes", "Please visit the Microsoft Store for detailed release notes." },
                 { "HiddenCount", ", including {0} hidden" },
                 { "VisibilityFailed", "Visibility change failed (Permission Denied):" }
             } }

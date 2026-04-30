@@ -62,6 +62,54 @@ namespace DesktopSnap
             }
         }
 
+        public static async Task<UpdateInfo> CheckStoreUpdateAsync(IntPtr hwnd)
+        {
+            try
+            {
+                var context = Windows.Services.Store.StoreContext.GetDefault();
+                WinRT.Interop.InitializeWithWindow.Initialize(context, hwnd);
+
+                var updates = await context.GetAppAndOptionalStorePackageUpdatesAsync();
+                if (updates == null || updates.Count == 0)
+                    return null;
+
+                // Get the current app package's identity to filter for the main package (avoiding optional packages)
+                var currentPackage = Windows.ApplicationModel.Package.Current;
+                var currentFamilyName = currentPackage.Id.FamilyName;
+
+                // Find the package in the update list that matches the current app
+                var mainUpdate = updates.FirstOrDefault(u =>
+                    string.Equals(u.Package.Id.FamilyName, currentFamilyName, StringComparison.OrdinalIgnoreCase));
+
+                if (mainUpdate == null)
+                    return null;
+
+                // Extract the version number
+                var v = mainUpdate.Package.Id.Version;
+                string latestVersion = $"{v.Major}.{v.Minor}.{v.Build}.{v.Revision}";
+
+                // Explicitly compare versions: only treat as an update if the server version is newer
+                string currentVersion = I18n.Instance.AppVersion;
+                bool isNewer = IsVersionNewer(currentVersion, latestVersion);
+
+                if (!isNewer)
+                    return null;
+
+                return new UpdateInfo
+                {
+                    Version = latestVersion,
+                    IsNewer = true,
+                    ReleaseNotes = I18n.Instance.StoreUpdateNotes,
+                    DownloadUrl = null   // Store updates don't require a direct download URL
+                };
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Store update check failed: {ex.Message}");
+                return null;
+            }
+        }
+
         private static bool IsVersionNewer(string current, string latest)
         {
             if (Version.TryParse(current, out var currentV) && Version.TryParse(latest, out var latestV))

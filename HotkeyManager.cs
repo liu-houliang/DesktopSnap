@@ -53,7 +53,7 @@ namespace DesktopSnap
 
             if (key == 0) return -1;
 
-            int id = _currentId++;
+            int id = System.Threading.Interlocked.Increment(ref _currentId);
             if (RegisterHotKey(hWnd, id, modifiers, key))
             {
                 _hotkeyActions[id] = action;

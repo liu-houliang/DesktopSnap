@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.IO;
 
 namespace DesktopSnap
@@ -19,6 +20,11 @@ namespace DesktopSnap
         public string ShortcutArgs { get; set; }       // For .lnk: command line arguments
         public string ShortcutIconLocation { get; set; } // For .lnk: icon path
         public string ShortcutWorkingDir { get; set; }   // For .lnk: working directory
+
+        [JsonIgnore]
+        public int ImageIndex { get; set; } = -1;
+        [JsonIgnore]
+        public bool HasShortcutOverlay { get; set; }
     }
 
     public class RestoreResult
@@ -92,8 +98,32 @@ namespace DesktopSnap
         const uint LVM_ARRANGE = 0x1016;
         const uint LVM_REDRAWITEMS = 0x1015;
         const uint LVM_UPDATE = 0x102A;
+        const uint LVM_GETITEMW = 0x104B;
         const int GWL_STYLE = -16;
         const int LVS_AUTOARRANGE = 0x0100;
+        
+        const uint LVIF_TEXT = 0x0001;
+        const uint LVIF_IMAGE = 0x0002;
+        const uint LVIF_STATE = 0x0008;
+        const uint LVIS_OVERLAYMASK = 0x0F00;
+
+        [DllImport("shell32.dll", CharSet = CharSet.Auto)]
+        static extern IntPtr SHGetFileInfo(string pszPath, uint dwFileAttributes, ref SHFILEINFO psfi, uint cbFileInfo, uint uFlags);
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        struct SHFILEINFO
+        {
+            public IntPtr hIcon;
+            public int iIcon;
+            public uint dwAttributes;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+            public string szDisplayName;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+            public string szTypeName;
+        }
+
+        const uint SHGFI_SYSICONINDEX = 0x000004000;
+        const uint SHGFI_USEFILEATTRIBUTES = 0x000000010;
 
         const uint PROCESS_VM_OPERATION = 0x0008;
         const uint PROCESS_VM_READ = 0x0010;
@@ -250,12 +280,12 @@ namespace DesktopSnap
                     POINT pt;
                     try
                     {
-                        ReadProcessMemory(process, ptAddress, localPt, pointStructSize, out _);
+                        if (!ReadProcessMemory(process, ptAddress, localPt, pointStructSize, out _)) continue;
                         pt = Marshal.PtrToStructure<POINT>(localPt);
                     }
                     finally { Marshal.FreeHGlobal(localPt); }
 
-                    // Text (Architecture safe struct injection)
+                    // Text and State (Architecture safe struct injection)
                     byte[] itemBytes;
                     int itemStructSize;
 
@@ -263,6 +293,9 @@ namespace DesktopSnap
                     {
                         itemStructSize = 88;
                         itemBytes = new byte[88];
+                        BitConverter.GetBytes(LVIF_TEXT | LVIF_IMAGE | LVIF_STATE).CopyTo(itemBytes, 0); // mask
+                        BitConverter.GetBytes(i).CopyTo(itemBytes, 4); // iItem
+                        BitConverter.GetBytes(LVIS_OVERLAYMASK).CopyTo(itemBytes, 16); // stateMask
                         BitConverter.GetBytes(strAddress.ToInt64()).CopyTo(itemBytes, 24); // pszText
                         BitConverter.GetBytes(255).CopyTo(itemBytes, 32); // cchTextMax
                     }
@@ -270,6 +303,9 @@ namespace DesktopSnap
                     {
                         itemStructSize = 60;
                         itemBytes = new byte[60];
+                        BitConverter.GetBytes(LVIF_TEXT | LVIF_IMAGE | LVIF_STATE).CopyTo(itemBytes, 0); // mask
+                        BitConverter.GetBytes(i).CopyTo(itemBytes, 4); // iItem
+                        BitConverter.GetBytes(LVIS_OVERLAYMASK).CopyTo(itemBytes, 16); // stateMask
                         BitConverter.GetBytes(strAddress.ToInt32()).CopyTo(itemBytes, 20); // pszText
                         BitConverter.GetBytes(255).CopyTo(itemBytes, 24); // cchTextMax
                     }
@@ -278,8 +314,12 @@ namespace DesktopSnap
                     try
                     {
                         Marshal.Copy(itemBytes, 0, localItem, itemStructSize);
-                        WriteProcessMemory(process, itemAddress, localItem, itemStructSize, out _);
-                        SendMessage(listView, LVM_GETITEMTEXTW, (IntPtr)i, itemAddress);
+                        if (!WriteProcessMemory(process, itemAddress, localItem, itemStructSize, out _)) continue;
+                        SendMessage(listView, LVM_GETITEMW, (IntPtr)0, itemAddress);
+                        
+                        // Read back to get iImage and state
+                        if (!ReadProcessMemory(process, itemAddress, localItem, itemStructSize, out _)) continue;
+                        Marshal.Copy(localItem, itemBytes, 0, itemStructSize);
                     }
                     finally { Marshal.FreeHGlobal(localItem); }
 
@@ -287,14 +327,35 @@ namespace DesktopSnap
                     string name;
                     try
                     {
-                        ReadProcessMemory(process, strAddress, localStr, (int)stringBufSize, out _);
+                        if (!ReadProcessMemory(process, strAddress, localStr, (int)stringBufSize, out _)) continue;
                         name = Marshal.PtrToStringUni(localStr);
                     }
                     finally { Marshal.FreeHGlobal(localStr); }
 
+                    int imageIndex = -1;
+                    uint state = 0;
+                    if (Environment.Is64BitOperatingSystem)
+                    {
+                        state = BitConverter.ToUInt32(itemBytes, 12);
+                        imageIndex = BitConverter.ToInt32(itemBytes, 36);
+                    }
+                    else
+                    {
+                        state = BitConverter.ToUInt32(itemBytes, 12);
+                        imageIndex = BitConverter.ToInt32(itemBytes, 28);
+                    }
+                    
+                    bool hasShortcutOverlay = (state & LVIS_OVERLAYMASK) != 0;
+
                     if (!string.IsNullOrEmpty(name))
                     {
-                        icons.Add(new IconInfo { Name = name, X = pt.x, Y = pt.y });
+                        icons.Add(new IconInfo { 
+                            Name = name, 
+                            X = pt.x, 
+                            Y = pt.y, 
+                            ImageIndex = imageIndex,
+                            HasShortcutOverlay = hasShortcutOverlay
+                        });
                     }
                 }
             }
@@ -318,8 +379,8 @@ namespace DesktopSnap
             string userDesktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
             string publicDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
 
-            // Build lookup table once instead of scanning per-icon
-            var fileLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            // Build lookup table: DisplayName -> List of full paths
+            var fileLookup = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             ScanDesktopDir(userDesktop, fileLookup);
             ScanDesktopDir(publicDesktop, fileLookup);
 
@@ -333,17 +394,111 @@ namespace DesktopSnap
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"DesktopIconManager Error: {ex}"); }
 
+            var claimedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // STAGE 1: Perfect matches (Name + Shortcut State + Icon Index)
             foreach (var icon in icons)
             {
-                if (fileLookup.TryGetValue(icon.Name, out string found))
+                if (fileLookup.TryGetValue(icon.Name, out List<string> candidates))
                 {
-                    icon.FilePath = found;
+                    string bestMatch = null;
+                    if (candidates.Count == 1)
+                    {
+                        if (!claimedPaths.Contains(candidates[0]))
+                            bestMatch = candidates[0];
+                    }
+                    else if (candidates.Count > 1)
+                    {
+                        foreach (var path in candidates)
+                        {
+                            if (claimedPaths.Contains(path)) continue;
 
-                    if (shell != null && found.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
+                            bool isLnk = path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase);
+                            if (isLnk != icon.HasShortcutOverlay) continue; // Priority 1: Shortcut state must match
+
+                            var shinfo = new SHFILEINFO();
+                            uint flags = SHGFI_SYSICONINDEX;
+                            bool isDir = Directory.Exists(path);
+                            if (isDir) flags |= SHGFI_USEFILEATTRIBUTES;
+
+                            IntPtr res = SHGetFileInfo(path, isDir ? 0x10u : 0x80u, ref shinfo, (uint)Marshal.SizeOf(shinfo), flags);
+                            if (res != IntPtr.Zero && shinfo.iIcon == icon.ImageIndex)
+                            {
+                                bestMatch = path;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (bestMatch != null)
+                    {
+                        icon.FilePath = bestMatch;
+                        claimedPaths.Add(bestMatch);
+                        
+                        // Fix the name if it was hidden by Explorer settings
+                        string realName = Path.GetFileName(bestMatch);
+                        if (!realName.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
+                        {
+                            icon.Name = realName;
+                        }
+                    }
+                }
+            }
+
+            // STAGE 2: Fallback matches for unresolved icons
+            foreach (var icon in icons)
+            {
+                if (string.IsNullOrEmpty(icon.FilePath) && fileLookup.TryGetValue(icon.Name, out List<string> candidates))
+                {
+                    string bestMatch = null;
+                    
+                    // Priority fallback: matching shortcut state
+                    foreach (var path in candidates)
+                    {
+                        if (claimedPaths.Contains(path)) continue;
+                        bool isLnk = path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase);
+                        if (isLnk == icon.HasShortcutOverlay)
+                        {
+                            bestMatch = path;
+                            break;
+                        }
+                    }
+
+                    // Final fallback: just take the first available
+                    if (bestMatch == null)
+                    {
+                        foreach (var path in candidates)
+                        {
+                            if (!claimedPaths.Contains(path))
+                            {
+                                bestMatch = path;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (bestMatch != null)
+                    {
+                        icon.FilePath = bestMatch;
+                        claimedPaths.Add(bestMatch);
+                        
+                        // Fix the name if it was hidden by Explorer settings
+                        string realName = Path.GetFileName(bestMatch);
+                        if (!realName.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
+                        {
+                            icon.Name = realName;
+                        }
+                    }
+                }
+                
+                // Read shortcut properties if it's a shortcut
+                if (!string.IsNullOrEmpty(icon.FilePath) && icon.FilePath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (shell != null)
                     {
                         try
                         {
-                            dynamic shortcut = shell.CreateShortcut(found);
+                            dynamic shortcut = shell.CreateShortcut(icon.FilePath);
                             icon.ShortcutTarget = shortcut.TargetPath;
                             icon.ShortcutArgs = shortcut.Arguments;
                             icon.ShortcutIconLocation = shortcut.IconLocation;
@@ -355,13 +510,14 @@ namespace DesktopSnap
                 }
             }
 
+
             if (shell != null)
             {
                 try { Marshal.ReleaseComObject(shell); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"DesktopIconManager Error: {ex}"); }
             }
         }
 
-        private static void ScanDesktopDir(string desktopPath, Dictionary<string, string> lookup)
+        private static void ScanDesktopDir(string desktopPath, Dictionary<string, List<string>> lookup)
         {
             if (!Directory.Exists(desktopPath)) return;
             try
@@ -371,11 +527,16 @@ namespace DesktopSnap
                     string fileName = Path.GetFileName(entry);
                     string fileNameNoExt = Path.GetFileNameWithoutExtension(entry);
 
-                    // Map by both full name and name-without-extension (for .lnk display)
-                    if (!lookup.ContainsKey(fileName))
-                        lookup[fileName] = entry;
-                    if (!lookup.ContainsKey(fileNameNoExt))
-                        lookup[fileNameNoExt] = entry;
+                    if (!lookup.TryGetValue(fileName, out var list1))
+                        lookup[fileName] = list1 = new List<string>();
+                    if (!list1.Contains(entry)) list1.Add(entry);
+
+                    if (!string.Equals(fileName, fileNameNoExt, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (!lookup.TryGetValue(fileNameNoExt, out var list2))
+                            lookup[fileNameNoExt] = list2 = new List<string>();
+                        if (!list2.Contains(entry)) list2.Add(entry);
+                    }
                 }
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"DesktopIconManager Error: {ex}"); }
@@ -408,23 +569,36 @@ namespace DesktopSnap
 
             // ===== PHASE 1: Recreate missing shortcuts =====
             string userDesktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-            var savedNames = new HashSet<string>(icons.Select(i => i.Name), StringComparer.OrdinalIgnoreCase);
             
-            // Get current desktop icon names first
+            // Get current desktop icon names as a list to handle duplicates (only needed for system icons now)
             var currentNames = GetCurrentIconNames(listView, pid);
 
             foreach (var icon in icons)
             {
-                if (!currentNames.Contains(icon.Name))
+                bool isMissing = false;
+                
+                // 1. Determine if it's missing
+                if (!string.IsNullOrEmpty(icon.FilePath))
+                {
+                    // For files/folders with a physical path, the disk is the ultimate truth
+                    isMissing = !File.Exists(icon.FilePath) && !Directory.Exists(icon.FilePath);
+                }
+                else
+                {
+                    // For system icons without paths, check if the displayed name exists
+                    isMissing = !currentNames.Contains(icon.Name);
+                }
+
+                // 2. Process missing status
+                if (isMissing)
                 {
                     // This icon is in the snapshot but NOT on the current desktop
                     if (!string.IsNullOrEmpty(icon.ShortcutTarget) && !string.IsNullOrEmpty(icon.FilePath))
                     {
-                        // It was a shortcut - try to recreate it
+                        // ... recreation logic ...
                         try
                         {
                             string targetPath = icon.FilePath;
-                            // If original was on user desktop, recreate there
                             if (!File.Exists(targetPath))
                             {
                                 targetPath = Path.Combine(userDesktop, Path.GetFileName(icon.FilePath));
@@ -447,6 +621,8 @@ namespace DesktopSnap
                                 Marshal.ReleaseComObject(shell);
                                 result.Recreated++;
                                 AppendLog($"Recreated shortcut: {icon.Name}\n");
+                                // Add to current names so we don't recreate it again if there are more duplicates
+                                currentNames.Add(icon.Name); 
                             }
                         }
                         catch (Exception ex)
@@ -458,27 +634,22 @@ namespace DesktopSnap
                     else if (!string.IsNullOrEmpty(icon.FilePath) && 
                              !icon.FilePath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
                     {
-                        // It was a regular file/folder - we cannot recreate it
                         result.MissingFiles.Add(icon.Name);
                         AppendLog($"Cannot restore deleted file: {icon.Name}\n");
                     }
                     else
                     {
-                        // No file path info (old snapshot format or system icon)
                         result.MissingFiles.Add(icon.Name);
                         AppendLog($"Cannot restore (no path data): {icon.Name}\n");
                     }
                 }
-            }
-
-            // ===== PHASE 1.5: Handle extra icons (on desktop but not in snapshot) =====
-            // We count them but leave them in place - don't delete user files
-            currentNames = GetCurrentIconNames(listView, pid); // re-read after recreations
-            foreach (var name in currentNames)
-            {
-                if (!savedNames.Contains(name))
+                else
                 {
-                    result.ExtraIcons++;
+                    // Consume one instance of the name for system icons
+                    if (string.IsNullOrEmpty(icon.FilePath))
+                    {
+                        currentNames.Remove(icon.Name);
+                    }
                 }
             }
 
@@ -495,8 +666,8 @@ namespace DesktopSnap
                 System.Threading.Thread.Sleep(400);
             }
 
-            // ===== PHASE 3: Build fresh name-to-index map and reposition all matched icons =====
-            var currentIcons = new Dictionary<string, int>();
+            // ===== PHASE 3: Build fresh map using robust path resolution =====
+            var currentDesktopIcons = new List<IconInfo>();
             
             // Re-read listView handle in case it changed after refresh
             listView = GetDesktopListView();
@@ -527,8 +698,6 @@ namespace DesktopSnap
             {
                 pBuf = VirtualAllocEx(process, IntPtr.Zero, itemSize + stringBufSize, MEM_COMMIT, PAGE_READWRITE);
                 
-                // Safety: if we can't allocate memory in Explorer, abort cleanly rather than
-                // writing to address 0 (pBuf + offset) which could crash Explorer.
                 if (pBuf == IntPtr.Zero)
                 {
                     AppendLog($"Error (Set Phase 3): VirtualAllocEx failed with code {Marshal.GetLastWin32Error()}\n");
@@ -549,23 +718,32 @@ namespace DesktopSnap
                     {
                         itemStructSize = 88;
                         itemBytes = new byte[88];
-                        BitConverter.GetBytes(strAddress.ToInt64()).CopyTo(itemBytes, 24);
-                        BitConverter.GetBytes(255).CopyTo(itemBytes, 32);
+                        BitConverter.GetBytes(LVIF_TEXT | LVIF_IMAGE | LVIF_STATE).CopyTo(itemBytes, 0); // mask
+                        BitConverter.GetBytes(i).CopyTo(itemBytes, 4); // iItem
+                        BitConverter.GetBytes(LVIS_OVERLAYMASK).CopyTo(itemBytes, 16); // stateMask
+                        BitConverter.GetBytes(strAddress.ToInt64()).CopyTo(itemBytes, 24); // pszText
+                        BitConverter.GetBytes(255).CopyTo(itemBytes, 32); // cchTextMax
                     }
                     else
                     {
                         itemStructSize = 60;
                         itemBytes = new byte[60];
-                        BitConverter.GetBytes(strAddress.ToInt32()).CopyTo(itemBytes, 20);
-                        BitConverter.GetBytes(255).CopyTo(itemBytes, 24);
+                        BitConverter.GetBytes(LVIF_TEXT | LVIF_IMAGE | LVIF_STATE).CopyTo(itemBytes, 0); // mask
+                        BitConverter.GetBytes(i).CopyTo(itemBytes, 4); // iItem
+                        BitConverter.GetBytes(LVIS_OVERLAYMASK).CopyTo(itemBytes, 16); // stateMask
+                        BitConverter.GetBytes(strAddress.ToInt32()).CopyTo(itemBytes, 20); // pszText
+                        BitConverter.GetBytes(255).CopyTo(itemBytes, 24); // cchTextMax
                     }
 
                     IntPtr localItem = Marshal.AllocHGlobal(itemStructSize);
                     try
                     {
                         Marshal.Copy(itemBytes, 0, localItem, itemStructSize);
-                        WriteProcessMemory(process, itemAddress, localItem, itemStructSize, out _);
-                        SendMessage(listView, LVM_GETITEMTEXTW, (IntPtr)i, itemAddress);
+                        if (!WriteProcessMemory(process, itemAddress, localItem, itemStructSize, out _)) { currentDesktopIcons.Add(null); continue; }
+                        SendMessage(listView, LVM_GETITEMW, (IntPtr)0, itemAddress);
+                        
+                        if (!ReadProcessMemory(process, itemAddress, localItem, itemStructSize, out _)) { currentDesktopIcons.Add(null); continue; }
+                        Marshal.Copy(localItem, itemBytes, 0, itemStructSize);
                     }
                     finally { Marshal.FreeHGlobal(localItem); }
 
@@ -573,22 +751,74 @@ namespace DesktopSnap
                     string name;
                     try
                     {
-                        ReadProcessMemory(process, strAddress, localStr, (int)stringBufSize, out _);
+                        if (!ReadProcessMemory(process, strAddress, localStr, (int)stringBufSize, out _)) { currentDesktopIcons.Add(null); continue; }
                         name = Marshal.PtrToStringUni(localStr);
                     }
                     finally { Marshal.FreeHGlobal(localStr); }
 
                     if (!string.IsNullOrEmpty(name))
                     {
-                        currentIcons[name] = i;
+                        int currentImageIndex = -1;
+                        uint state = 0;
+                        if (Environment.Is64BitOperatingSystem)
+                        {
+                            state = BitConverter.ToUInt32(itemBytes, 12);
+                            currentImageIndex = BitConverter.ToInt32(itemBytes, 36);
+                        }
+                        else
+                        {
+                            state = BitConverter.ToUInt32(itemBytes, 12);
+                            currentImageIndex = BitConverter.ToInt32(itemBytes, 28);
+                        }
+                        
+                        bool hasShortcutOverlay = (state & LVIS_OVERLAYMASK) != 0;
+                        
+                        currentDesktopIcons.Add(new IconInfo {
+                            Name = name,
+                            ImageIndex = currentImageIndex,
+                            HasShortcutOverlay = hasShortcutOverlay,
+                            X = i // Temporarily store the ListView index in the X coordinate!
+                        });
+                    }
+                    else
+                    {
+                        // Keep indices perfectly aligned
+                        currentDesktopIcons.Add(null);
                     }
                 }
             }
             finally
             {
-                // Always free remote memory and close the handle, even if an exception occurs.
                 if (pBuf != IntPtr.Zero) VirtualFreeEx(process, pBuf, 0, MEM_RELEASE);
                 if (!processClosed) CloseHandle(process);
+            }
+
+            // Resolve actual file paths for current desktop icons
+            var iconsToResolve = currentDesktopIcons.Where(x => x != null).ToList();
+            ResolveFilePaths(iconsToResolve);
+
+            // Build lookup dictionaries
+            var currentIconsByPath = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var currentIconsByName = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var curIcon in currentDesktopIcons)
+            {
+                if (curIcon != null)
+                {
+                    int indexInListView = curIcon.X; // Recover the index
+
+                    if (!string.IsNullOrEmpty(curIcon.FilePath))
+                    {
+                        currentIconsByPath[curIcon.FilePath] = indexInListView;
+                    }
+                    
+                    if (!currentIconsByName.TryGetValue(curIcon.Name, out var indices))
+                    {
+                        indices = new List<int>();
+                        currentIconsByName[curIcon.Name] = indices;
+                    }
+                    indices.Add(indexInListView);
+                }
             }
 
             // ===== PHASE 4: Write icon positions =====
@@ -601,24 +831,62 @@ namespace DesktopSnap
                     pPoint = VirtualAllocEx(writeProcess, IntPtr.Zero, (uint)Marshal.SizeOf(typeof(POINT)), MEM_COMMIT, PAGE_READWRITE);
                     if (pPoint != IntPtr.Zero)
                     {
+                        var usedIndices = new HashSet<int>();
                         foreach (var icon in icons)
                         {
-                            if (currentIcons.TryGetValue(icon.Name, out int index))
+                            int index = -1;
+                            
+                            // 1. Try exact path match (Most robust, handles collisions perfectly)
+                            if (!string.IsNullOrEmpty(icon.FilePath) && 
+                                currentIconsByPath.TryGetValue(icon.FilePath, out int exactIdx) && 
+                                !usedIndices.Contains(exactIdx))
                             {
+                                index = exactIdx;
+                            }
+                            // 2. Fallback to name match (For system icons like Recycle Bin or missing paths)
+                            else if (currentIconsByName.TryGetValue(icon.Name, out var fallbackIndices))
+                            {
+                                for (int j = 0; j < fallbackIndices.Count; j++)
+                                {
+                                    if (!usedIndices.Contains(fallbackIndices[j]))
+                                    {
+                                        index = fallbackIndices[j];
+                                        fallbackIndices.RemoveAt(j); // Consume it
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (index != -1)
+                            {
+                                usedIndices.Add(index);
                                 POINT pt = new POINT { x = icon.X, y = icon.Y };
                                 int pointSize = Marshal.SizeOf(typeof(POINT));
                                 IntPtr localPt = Marshal.AllocHGlobal(pointSize);
                                 try
                                 {
                                     Marshal.StructureToPtr(pt, localPt, false);
-                                    WriteProcessMemory(writeProcess, pPoint, localPt, pointSize, out _);
-                                    SendMessage(listView, LVM_SETITEMPOSITION32, (IntPtr)index, pPoint);
-                                    SendMessage(listView, LVM_UPDATE, (IntPtr)index, IntPtr.Zero);
-                                    result.Repositioned++;
+                                    if (WriteProcessMemory(writeProcess, pPoint, localPt, pointSize, out _))
+                                    {
+                                        SendMessage(listView, LVM_SETITEMPOSITION32, (IntPtr)index, pPoint);
+                                        SendMessage(listView, LVM_UPDATE, (IntPtr)index, IntPtr.Zero);
+                                        result.Repositioned++;
+                                    }
                                 }
                                 finally { Marshal.FreeHGlobal(localPt); }
                             }
                         }
+
+                        // Calculate extra icons based on unused items on the desktop
+                        int extraCount = 0;
+                        for (int i = 0; i < currentDesktopIcons.Count; i++)
+                        {
+                            if (currentDesktopIcons[i] != null && !usedIndices.Contains(i))
+                            {
+                                extraCount++;
+                            }
+                        }
+                        result.ExtraIcons = extraCount;
                     }
                 }
                 finally
@@ -639,11 +907,11 @@ namespace DesktopSnap
         }
 
         /// <summary>
-        /// Quick helper to get current icon names from the desktop ListView without full enumeration
+        /// Quick helper to get current icon names from the desktop ListView as a list to handle duplicates
         /// </summary>
-        private static HashSet<string> GetCurrentIconNames(IntPtr listView, uint pid)
+        private static List<string> GetCurrentIconNames(IntPtr listView, uint pid)
         {
-            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var names = new List<string>();
             
             // Re-fetch pid from the listView handle to avoid stale pid issues
             GetWindowThreadProcessId(listView, out uint actualPid);
@@ -672,6 +940,8 @@ namespace DesktopSnap
                     {
                         itemStructSize = 88;
                         itemBytes = new byte[88];
+                        BitConverter.GetBytes(LVIF_TEXT).CopyTo(itemBytes, 0);
+                        BitConverter.GetBytes(i).CopyTo(itemBytes, 4);
                         BitConverter.GetBytes(strAddr.ToInt64()).CopyTo(itemBytes, 24);
                         BitConverter.GetBytes(255).CopyTo(itemBytes, 32);
                     }
@@ -679,6 +949,8 @@ namespace DesktopSnap
                     {
                         itemStructSize = 60;
                         itemBytes = new byte[60];
+                        BitConverter.GetBytes(LVIF_TEXT).CopyTo(itemBytes, 0);
+                        BitConverter.GetBytes(i).CopyTo(itemBytes, 4);
                         BitConverter.GetBytes(strAddr.ToInt32()).CopyTo(itemBytes, 20);
                         BitConverter.GetBytes(255).CopyTo(itemBytes, 24);
                     }

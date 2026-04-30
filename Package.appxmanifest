@@ -11,7 +11,7 @@
   <Identity
     Name="LiuHouliang.DesktopSnap"
     Publisher="CN=88A13951-9E90-4EF1-887E-60DA4E709FEA"
-    Version="1.0.2.0" />
+    Version="1.0.3.0" />
 
   <mp:PhoneIdentity PhoneProductId="52553812-af1b-4d5d-88f4-e98b3f18a108" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 

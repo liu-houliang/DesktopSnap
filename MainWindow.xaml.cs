@@ -241,7 +241,7 @@ namespace DesktopSnap
         private void AppWindow_Closing(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
         {
             var settings = SettingsManager.Load();
-            if (settings.CloseToTray)
+            if (settings.CloseToTray && !_isClosingForSystem)
             {
                 args.Cancel = true;
                 this.Hide();
@@ -269,6 +269,9 @@ namespace DesktopSnap
 
         private const int GWLP_WNDPROC = -4;
         private const int WM_DISPLAYCHANGE = 0x007E;
+        private const int WM_QUERYENDSESSION = 0x0011;
+        private const int WM_ENDSESSION = 0x0016;
+        private bool _isClosingForSystem = false;
         private DateTime _lastDisplayChangeAutoSave = DateTime.MinValue;
 
         [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr")]
@@ -298,6 +301,19 @@ namespace DesktopSnap
             {
                 int id = wParam.ToInt32();
                 HotkeyManager.HandleMessage(id);
+            }
+            else if (msg == WM_QUERYENDSESSION)
+            {
+                _isClosingForSystem = true;
+                return (IntPtr)1; 
+            }
+            else if (msg == WM_ENDSESSION)
+            {
+                if (wParam.ToInt32() == 0)
+                {
+                    _isClosingForSystem = false;
+                }
+                return IntPtr.Zero;
             }
             else if (msg == WM_DISPLAYCHANGE)
             {

@@ -120,6 +120,27 @@ namespace DesktopSnap
                 {
                     MainWindow.Instance?.ShowAndRestore();
                 };
+
+                // --- Store Update: graceful self-exit ---
+                // When the Microsoft Store installs a new version of this package, the old
+                // running instance must exit so the new version can register the single-instance
+                // key and start cleanly. PackageCatalog.OpenForCurrentPackage() fires
+                // PackageUpdating as soon as the update deployment begins.
+                try
+                {
+                    var catalog = Windows.ApplicationModel.PackageCatalog.OpenForCurrentPackage();
+                    catalog.PackageUpdating += (sender, e) =>
+                    {
+                        Debug.WriteLine($"Package update detected (progress: {e.Progress}%). Exiting for update...");
+                        m_window?.DispatcherQueue?.TryEnqueue(() => Application.Current.Exit());
+                    };
+                }
+                catch (Exception ex)
+                {
+                    // Non-packaged (sideloaded / debug) builds don't have a package catalog.
+                    // Silently ignore so dev builds are unaffected.
+                    Debug.WriteLine($"PackageCatalog not available (non-packaged build?): {ex.Message}");
+                }
             }
 
             // Set working directory to the app's base directory to ensure relative paths work.

@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
+using System.Diagnostics;
 
 namespace DesktopSnap
 {
@@ -238,6 +239,18 @@ namespace DesktopSnap
             if (File.Exists(file))
             {
                 File.Delete(file);
+            }
+        }
+
+        public static void DeleteAllLayouts()
+        {
+            if (Directory.Exists(_layoutsDirectory))
+            {
+                var files = Directory.GetFiles(_layoutsDirectory, "*.json");
+                foreach (var file in files)
+                {
+                    try { File.Delete(file); } catch (Exception ex) { Debug.WriteLine($"Failed to delete {file}: {ex.Message}"); }
+                }
             }
         }
 

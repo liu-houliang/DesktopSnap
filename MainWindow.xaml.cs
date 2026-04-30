@@ -1420,6 +1420,52 @@ namespace DesktopSnap
             }
         }
 
+        private async void DeleteAllLayouts_Click(object sender, RoutedEventArgs e)
+        {
+            SettingsDialog.Hide();
+
+            int countdown = 5;
+            var dialog = new ContentDialog
+            {
+                Title = I18n.Instance.ConfirmDeleteAllTitle,
+                Content = I18n.Instance.ConfirmDeleteAllContent,
+                PrimaryButtonText = string.Format(I18n.Instance.L("CountdownConfirm"), countdown),
+                IsPrimaryButtonEnabled = false,
+                CloseButtonText = I18n.Instance.Cancel,
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = this.Content.XamlRoot
+            };
+
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            timer.Tick += (s, ev) =>
+            {
+                countdown--;
+                if (countdown > 0)
+                {
+                    dialog.PrimaryButtonText = string.Format(I18n.Instance.L("CountdownConfirm"), countdown);
+                }
+                else
+                {
+                    dialog.PrimaryButtonText = I18n.Instance.L("Yes");
+                    dialog.IsPrimaryButtonEnabled = true;
+                    timer.Stop();
+                }
+            };
+            timer.Start();
+
+            var result = await dialog.ShowAsync();
+            timer.Stop();
+
+            if (result == ContentDialogResult.Primary)
+            {
+                LayoutManager.DeleteAllLayouts();
+                RefreshLayoutsList();
+                ShowToast(I18n.Instance.AllSnapshotsDeleted);
+            }
+            
+            _ = SettingsDialog.ShowAsync();
+        }
+
         private async void RestoreBtn_Click(object sender, RoutedEventArgs e)
         {
             if (LayoutsListView.SelectedItem is DesktopLayout layout)

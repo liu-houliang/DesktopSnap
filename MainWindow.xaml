@@ -567,6 +567,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <Button Grid.Row="0" Grid.Column="0" Click="ExportAll_Click" HorizontalAlignment="Stretch" Padding="12,10" CornerRadius="6" Background="#11ffffff">
@@ -583,6 +584,14 @@
 
                         <Button Grid.Row="1" Grid.Column="1" Click="OpenBackupFolder_Click" HorizontalAlignment="Stretch" Padding="12,10" CornerRadius="6" Background="#11ffffff">
                             <TextBlock Text="{x:Bind Lang.OpenFolder, Mode=OneWay}" FontSize="13" HorizontalAlignment="Center" />
+                        </Button>
+
+                        <Button Grid.Row="2" Grid.ColumnSpan="2" Click="DeleteAllLayouts_Click" HorizontalAlignment="Stretch" Padding="12,10" CornerRadius="6" 
+                                Background="#1fff6666" BorderBrush="#33ff6666" BorderThickness="1">
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                <FontIcon Glyph="&#xE74D;" FontSize="14" Foreground="#ffff6666" />
+                                <TextBlock Text="{x:Bind Lang.DeleteAllLayouts, Mode=OneWay}" FontSize="13" Foreground="#ffff6666" FontWeight="SemiBold" />
+                            </StackPanel>
                         </Button>
                     </Grid>
                 </StackPanel>

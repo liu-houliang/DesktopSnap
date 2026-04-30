@@ -54,6 +54,7 @@ namespace DesktopSnap
         public string ConfirmRestoreTitle => L("ConfirmRestoreTitle");
         public string ConfirmRestoreContent => L("ConfirmRestoreContent");
         public string Yes => L("Yes");
+        public string Continue => L("Continue");
         public string Cancel => L("Cancel");
         public string Close => L("Close");
         public string RestoringWait => L("RestoringWait");
@@ -119,6 +120,10 @@ namespace DesktopSnap
         public string UpdateAutoCheck => L("UpdateAutoCheck");
         public string DisableAutoUpdate => L("DisableAutoUpdate");
         public string StoreUpdateNotes => L("StoreUpdateNotes");
+        public string DeleteAllLayouts => L("DeleteAllLayouts");
+        public string ConfirmDeleteAllTitle => L("ConfirmDeleteAllTitle");
+        public string ConfirmDeleteAllContent => L("ConfirmDeleteAllContent");
+        public string AllSnapshotsDeleted => L("AllSnapshotsDeleted");
 
         // About dialog
         public string About => L("About");
@@ -187,6 +192,7 @@ namespace DesktopSnap
                 { "ConfirmRestoreTitle", "确认恢复" },
                 { "ConfirmRestoreContent", "确定要将桌面图标恢复到此快照的状态吗？\n当前桌面上未保存的位置变动将会丢失。" },
                 { "Yes", "确定" },
+                { "Continue", "继续" },
                 { "Cancel", "取消" },
                 { "Close", "关闭" },
                 { "RestoringWait", "正在恢复桌面图标布局，请稍候..." },
@@ -267,7 +273,12 @@ namespace DesktopSnap
                 { "DisableAutoUpdate", "不再自动检查更新" },
                 { "StoreUpdateNotes", "请前往 Microsoft Store 查看详细发行说明。" },
                 { "HiddenCount", "，其中 {0} 个已隐藏" },
-                { "VisibilityFailed", "权限不足导致显隐失败:" }
+                { "VisibilityFailed", "权限不足导致显隐失败:" },
+                { "DeleteAllLayouts", "删除所有本地布局" },
+                { "ConfirmDeleteAllTitle", "确认删除所有布局？" },
+                { "ConfirmDeleteAllContent", "此操作将永久删除所有已保存的布局快照（包括自动备份）。此操作无法撤销，您确定要继续吗？" },
+                { "CountdownConfirm", "确定 ({0}秒)" },
+                { "AllSnapshotsDeleted", "所有快照已成功删除。" }
             } },
             { "en", new Dictionary<string, string> {
                 { "AppTitle", "Desktop Snap" },
@@ -303,6 +314,7 @@ namespace DesktopSnap
                 { "ConfirmRestoreTitle", "Confirm Restore" },
                 { "ConfirmRestoreContent", "Are you sure you want to restore your desktop icons to this snapshot?\nUnsaved position changes on your current desktop will be lost." },
                 { "Yes", "Yes" },
+                { "Continue", "Continue" },
                 { "Cancel", "Cancel" },
                 { "Close", "Close" },
                 { "RestoringWait", "Restoring desktop icon layout, please wait..." },
@@ -383,7 +395,12 @@ namespace DesktopSnap
                 { "DisableAutoUpdate", "Don't check automatically" },
                 { "StoreUpdateNotes", "Please visit the Microsoft Store for detailed release notes." },
                 { "HiddenCount", ", including {0} hidden" },
-                { "VisibilityFailed", "Visibility change failed (Permission Denied):" }
+                { "VisibilityFailed", "Visibility change failed (Permission Denied):" },
+                { "DeleteAllLayouts", "Delete All Local Layouts" },
+                { "ConfirmDeleteAllTitle", "Confirm Delete All Layouts?" },
+                { "ConfirmDeleteAllContent", "This will permanently delete ALL saved snapshots (including auto-backups). This action cannot be undone. Are you sure you want to continue?" },
+                { "CountdownConfirm", "Confirm ({0}s)" },
+                { "AllSnapshotsDeleted", "All snapshots deleted successfully." }
             } }
         };
 

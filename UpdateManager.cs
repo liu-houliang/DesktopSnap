@@ -51,7 +51,7 @@ namespace DesktopSnap
                 {
                     Version = latestVersionTag,
                     ReleaseNotes = root.GetProperty("body").GetString(),
-                    DownloadUrl = zipAsset.ValueKind != JsonValueKind.Undefined ? zipAsset.GetProperty("browser_download_url").GetString() : null,
+                    DownloadUrl = zipAsset.ValueKind != JsonValueKind.Undefined ? $"https://oss.liuhouliang.com/packages/desktopsnap/DesktopSnap-v{latestVersionTag}.zip" : null,
                     IsNewer = isNewer
                 };
             }

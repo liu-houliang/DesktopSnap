@@ -656,14 +656,11 @@ namespace DesktopSnap
             // ===== PHASE 2: Wait for Explorer to register new shortcuts, then re-enumerate =====
             if (result.Recreated > 0)
             {
-                System.Threading.Thread.Sleep(800); // Give Explorer time to register
-                // Refresh desktop
-                IntPtr refreshHwnd = FindWindow("Progman", null);
-                if (refreshHwnd != IntPtr.Zero)
-                {
-                    SendMessage(refreshHwnd, 0x0111, (IntPtr)0x7103, IntPtr.Zero); // Refresh
-                }
-                System.Threading.Thread.Sleep(400);
+                // WScript.Shell.Save() automatically sends a shell change notification.
+                // Sending legacy WM_COMMAND (0x7103) to Progman on Win11 steals focus to a hidden window,
+                // breaking desktop keyboard shortcuts (Del, Ctrl+C, etc).
+                // We just need to wait for Explorer to process the creation.
+                System.Threading.Thread.Sleep(1200); 
             }
 
             // ===== PHASE 3: Build fresh map using robust path resolution =====

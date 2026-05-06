@@ -88,6 +88,10 @@ namespace DesktopSnap
         public string AutoSaveOnDisplayChangeDescription => L("AutoSaveOnDisplayChangeDescription");
         public string DisplayChangeAutoSaveName => L("DisplayChangeAutoSaveName");
         public string DetectedDisplayChange => L("DetectedDisplayChange");
+        public string PinToTop => L("PinToTop");
+        public string Unpin => L("Unpin");
+        public string MoveUp => L("MoveUp");
+        public string MoveDown => L("MoveDown");
         
         // New strings for tray and settings
         public string AutoStart => L("AutoStart");
@@ -278,7 +282,11 @@ namespace DesktopSnap
                 { "ConfirmDeleteAllTitle", "确认删除所有布局？" },
                 { "ConfirmDeleteAllContent", "此操作将永久删除所有已保存的布局快照（包括自动备份）。此操作无法撤销，您确定要继续吗？" },
                 { "CountdownConfirm", "确定 ({0}秒)" },
-                { "AllSnapshotsDeleted", "所有快照已成功删除。" }
+                { "AllSnapshotsDeleted", "所有快照已成功删除。" },
+                { "PinToTop", "置顶" },
+                { "Unpin", "取消置顶" },
+                { "MoveUp", "上移" },
+                { "MoveDown", "下移" }
             } },
             { "en", new Dictionary<string, string> {
                 { "AppTitle", "Desktop Snap" },
@@ -400,7 +408,11 @@ namespace DesktopSnap
                 { "ConfirmDeleteAllTitle", "Confirm Delete All Layouts?" },
                 { "ConfirmDeleteAllContent", "This will permanently delete ALL saved snapshots (including auto-backups). This action cannot be undone. Are you sure you want to continue?" },
                 { "CountdownConfirm", "Confirm ({0}s)" },
-                { "AllSnapshotsDeleted", "All snapshots deleted successfully." }
+                { "AllSnapshotsDeleted", "All snapshots deleted successfully." },
+                { "PinToTop", "Pin to Top" },
+                { "Unpin", "Unpin" },
+                { "MoveUp", "Move Up" },
+                { "MoveDown", "Move Down" }
             } }
         };
 

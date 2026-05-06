@@ -367,12 +367,41 @@ namespace DesktopSnap
 
         private void RefreshLayoutsList()
         {
+            var selectedId = (LayoutsListView.SelectedItem as DesktopLayout)?.Id;
             var layouts = LayoutManager.GetAllLayouts();
             LayoutsListView.ItemsSource = layouts;
             
-            if (LayoutsListView.SelectedItem == null && layouts.Count > 0)
+            if (selectedId != null)
             {
-                // Optionally auto-select first
+                var matched = layouts.FirstOrDefault(l => l.Id == selectedId);
+                if (matched != null) LayoutsListView.SelectedItem = matched;
+            }
+        }
+
+        private void PinMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement element && element.DataContext is DesktopLayout layout && layout != null)
+            {
+                LayoutManager.TogglePin(layout.Id);
+                RefreshLayoutsList();
+            }
+        }
+
+        private void MoveUpMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement element && element.DataContext is DesktopLayout layout && layout != null)
+            {
+                LayoutManager.MovePinnedOrder(layout.Id, true);
+                RefreshLayoutsList();
+            }
+        }
+
+        private void MoveDownMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement element && element.DataContext is DesktopLayout layout && layout != null)
+            {
+                LayoutManager.MovePinnedOrder(layout.Id, false);
+                RefreshLayoutsList();
             }
         }
 

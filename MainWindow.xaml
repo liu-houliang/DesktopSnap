@@ -15,6 +15,10 @@
 
     <Grid>
         <Grid.Resources>
+            <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+            <local:BoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" Inverse="True" />
+            <local:PinnedColorConverter x:Key="PinnedColorConverter" />
+            <local:PinTooltipConverter x:Key="PinTooltipConverter" />
             <!-- Card Style for ListView Items -->
             <Style x:Key="SnapshotItemStyle" TargetType="ListViewItem">
                 <Setter Property="Background" Value="Transparent" />
@@ -116,11 +120,55 @@
                           Padding="0,0,16,0"
                           Margin="0,0,-8,0">
                     <ListView.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" Foreground="White" />
-                                <TextBlock Text="{Binding SavedTime}" FontSize="12" Foreground="#99ffffff" />
-                            </StackPanel>
+                        <DataTemplate x:DataType="local:DesktopLayout">
+                            <Grid Margin="0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" Foreground="White" />
+                                    <TextBlock Text="{Binding SavedTime}" FontSize="12" Foreground="#99ffffff" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Click="PinMenuItem_Click" 
+                                        Style="{StaticResource SubtleButtonStyle}"
+                                        Padding="4" MinWidth="28" MinHeight="28"
+                                        VerticalAlignment="Top" Margin="4,2,0,0"
+                                        ToolTipService.ToolTip="{Binding IsPinned, Converter={StaticResource PinTooltipConverter}}">
+                                    <FontIcon Glyph="&#xE840;" FontSize="12" 
+                                              Foreground="{Binding IsPinned, Converter={StaticResource PinnedColorConverter}}" />
+                                </Button>
+
+                                <Grid.ContextFlyout>
+                                    <MenuFlyout>
+                                        <MenuFlyoutItem Text="{x:Bind local:I18n.Instance.PinToTop, Mode=OneWay}" Click="PinMenuItem_Click" 
+                                                        Visibility="{Binding IsPinned, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE840;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="{x:Bind local:I18n.Instance.Unpin, Mode=OneWay}" Click="PinMenuItem_Click" 
+                                                        Visibility="{Binding IsPinned, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE196;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator Visibility="{Binding IsPinned, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                        <MenuFlyoutItem Text="{x:Bind local:I18n.Instance.MoveUp, Mode=OneWay}" Click="MoveUpMenuItem_Click" 
+                                                        Visibility="{Binding IsPinned, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE110;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="{x:Bind local:I18n.Instance.MoveDown, Mode=OneWay}" Click="MoveDownMenuItem_Click" 
+                                                        Visibility="{Binding IsPinned, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE1FD;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Grid.ContextFlyout>
+                            </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>

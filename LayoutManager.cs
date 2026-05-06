@@ -14,6 +14,8 @@ namespace DesktopSnap
         public string Id { get; set; } = Guid.NewGuid().ToString();
         public string Name { get; set; }
         public DateTime SavedAt { get; set; } = DateTime.Now;
+        public bool IsPinned { get; set; } = false;
+        public DateTime? PinnedAt { get; set; } = null;
         public List<IconInfo> Icons { get; set; } = new List<IconInfo>();
         public List<DisplayInfo> CapturedDisplays { get; set; } = new List<DisplayInfo>();
         public string SavedTime => SavedAt.ToString("yyyy-MM-dd HH:mm:ss");
@@ -87,18 +89,23 @@ namespace DesktopSnap
                         {
                             layout.Name = I18n.Instance.AutoTempSave + " (" + layout.SavedAt.ToString("MM-dd HH:mm") + ")";
                         }
+
                         layouts.Add(layout);
                     }
                 }
                 catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"LayoutManager Error: {ex}"); }
             }
-            return layouts.OrderByDescending(l => l.Id.StartsWith("auto_") || l.Id == "temp_auto_save").ThenByDescending(l => l.SavedAt).ToList();
+            return layouts
+                .OrderByDescending(l => l.IsPinned)
+                .ThenByDescending(l => l.PinnedAt ?? DateTime.MinValue)
+                .ThenByDescending(l => l.SavedAt)
+                .ToList();
         }
 
-        public static void SaveLayout(DesktopLayout layout)
+        public static void SaveLayout(DesktopLayout layout, bool updateTimestamp = true)
         {
             string file = Path.Combine(_layoutsDirectory, $"{layout.Id}.json");
-            SaveLayoutInternal(layout, file, true);
+            SaveLayoutInternal(layout, file, updateTimestamp);
         }
 
         public static void ExportLayout(DesktopLayout layout, string destinationPath)
@@ -115,6 +122,8 @@ namespace DesktopSnap
                 Id = layout.Id,
                 Name = layout.Name,
                 SavedAt = layout.SavedAt,
+                IsPinned = layout.IsPinned,
+                PinnedAt = layout.PinnedAt,
                 CapturedDisplays = layout.CapturedDisplays,
                 Icons = layout.Icons.Select(i => new IconInfo
                 {
@@ -261,7 +270,7 @@ namespace DesktopSnap
             if (layout != null)
             {
                 layout.Name = newName;
-                SaveLayout(layout);
+                SaveLayout(layout, false);
             }
         }
 
@@ -305,6 +314,69 @@ namespace DesktopSnap
                     CapturedDisplays = DisplayManager.GetDisplays()
                 };
                 SaveLayout(newAutoSave);
+            }
+        }
+
+        public static void TogglePin(string id)
+        {
+            var layouts = GetAllLayouts();
+            var layout = layouts.FirstOrDefault(l => l.Id == id);
+            if (layout != null)
+            {
+                layout.IsPinned = !layout.IsPinned;
+                if (layout.IsPinned)
+                {
+                    layout.PinnedAt = DateTime.Now;
+                }
+                else
+                {
+                    layout.PinnedAt = null;
+                }
+                SaveLayout(layout, false);
+            }
+        }
+
+        public static void MovePinnedOrder(string id, bool up)
+        {
+            var layouts = GetAllLayouts().Where(l => l.IsPinned).OrderByDescending(l => l.PinnedAt ?? DateTime.MinValue).ToList();
+            int index = layouts.FindIndex(l => l.Id == id);
+            if (index == -1) return;
+
+            if (up && index > 0)
+            {
+                var current = layouts[index];
+                var target = layouts[index - 1];
+                
+                // Swap PinnedAt to swap positions
+                var temp = current.PinnedAt;
+                current.PinnedAt = target.PinnedAt;
+                target.PinnedAt = temp;
+
+                // Ensure they are not exactly the same if they were somehow
+                if (current.PinnedAt == target.PinnedAt)
+                {
+                    current.PinnedAt = (current.PinnedAt ?? DateTime.Now).AddSeconds(1);
+                }
+
+                SaveLayout(current, false);
+                SaveLayout(target, false);
+            }
+            else if (!up && index < layouts.Count - 1)
+            {
+                var current = layouts[index];
+                var target = layouts[index + 1];
+                
+                var temp = current.PinnedAt;
+                current.PinnedAt = target.PinnedAt;
+                target.PinnedAt = temp;
+
+                if (current.PinnedAt == target.PinnedAt)
+                {
+                    current.PinnedAt = (current.PinnedAt ?? DateTime.Now).AddSeconds(-1);
+                }
+
+                SaveLayout(current, false);
+                SaveLayout(target, false);
             }
         }
     }

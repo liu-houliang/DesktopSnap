@@ -990,18 +990,21 @@ namespace DesktopSnap
                     if (pPoint != IntPtr.Zero)
                     {
                         var usedIndices = new HashSet<int>();
+                        var unmatchedIcons = new List<IconInfo>();
+                        var iconSavedIndices = new Dictionary<IconInfo, int>();
+
                         foreach (var icon in icons)
                         {
                             int index = -1;
                             
-                            // 1. Try exact path match (Most robust, handles collisions perfectly)
+                            // 1. Try exact path match
                             if (!string.IsNullOrEmpty(icon.FilePath) && 
                                 currentIconsByPath.TryGetValue(icon.FilePath, out int exactIdx) && 
                                 !usedIndices.Contains(exactIdx))
                             {
                                 index = exactIdx;
                             }
-                            // 2. Fallback to name match (For system icons like Recycle Bin or missing paths)
+                            // 2. Fallback to name match
                             else if (currentIconsByName.TryGetValue(icon.Name, out var fallbackIndices))
                             {
                                 for (int j = 0; j < fallbackIndices.Count; j++)
@@ -1009,7 +1012,7 @@ namespace DesktopSnap
                                     if (!usedIndices.Contains(fallbackIndices[j]))
                                     {
                                         index = fallbackIndices[j];
-                                        fallbackIndices.RemoveAt(j); // Consume it
+                                        fallbackIndices.RemoveAt(j);
                                         break;
                                     }
                                 }
@@ -1018,33 +1021,124 @@ namespace DesktopSnap
                             if (index != -1)
                             {
                                 usedIndices.Add(index);
-
-                                // If the icon has no historical coordinates (-9999, -9999), it means it was a new hidden file.
-                                // We MUST NOT send -9999 to SysListView32, otherwise Windows clamps it to (0,0) (top-left corner).
-                                // By skipping the SETITEMPOSITION call, we let it stay where Windows naturally placed it.
-                                if (icon.X == -9999 && icon.Y == -9999)
-                                {
-                                    AppendLog($"Skipping position setting for {icon.Name} because it has no historical coordinates (-9999, -9999).\n");
-                                    result.Repositioned++; // Count as successfully processed
-                                    continue;
-                                }
-
-                                POINT pt = new POINT { x = icon.X, y = icon.Y };
-                                int pointSize = Marshal.SizeOf(typeof(POINT));
-                                IntPtr localPt = Marshal.AllocHGlobal(pointSize);
-                                try
-                                {
-                                    Marshal.StructureToPtr(pt, localPt, false);
-                                    if (WriteProcessMemory(writeProcess, pPoint, localPt, pointSize, out _))
-                                    {
-                                        SendMessage(listView, LVM_SETITEMPOSITION32, (IntPtr)index, pPoint);
-                                        SendMessage(listView, LVM_UPDATE, (IntPtr)index, IntPtr.Zero);
-                                        result.Repositioned++;
-                                    }
-                                }
-                                finally { Marshal.FreeHGlobal(localPt); }
+                                iconSavedIndices[icon] = index;
+                            }
+                            else
+                            {
+                                unmatchedIcons.Add(icon);
                             }
                         }
+
+                        // Fixup pass: try to match remaining icons by name against remaining indices
+                        if (unmatchedIcons.Count > 0)
+                        {
+                            var remainingIndices = new List<int>();
+                            var remainingNames = new List<string>();
+                            for (int i = 0; i < currentDesktopIcons.Count; i++)
+                            {
+                                if (currentDesktopIcons[i] != null && !usedIndices.Contains(i))
+                                {
+                                    remainingIndices.Add(i);
+                                    remainingNames.Add(currentDesktopIcons[i].Name ?? "");
+                                }
+                            }
+
+                            foreach (var icon in unmatchedIcons)
+                            {
+                                for (int j = 0; j < remainingIndices.Count; j++)
+                                {
+                                    if (string.Equals(remainingNames[j], icon.Name, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        int idx = remainingIndices[j];
+                                        usedIndices.Add(idx);
+                                        iconSavedIndices[icon] = idx;
+                                        remainingIndices.RemoveAt(j);
+                                        remainingNames.RemoveAt(j);
+                                        AppendLog($"SetIcons: Fixup matched '{icon.Name}' at index {idx}\n");
+                                        break;
+                                    }
+                                }
+
+                                if (!iconSavedIndices.ContainsKey(icon))
+                                {
+                                    // Try filename match against remaining
+                                    if (!string.IsNullOrEmpty(icon.FilePath))
+                                    {
+                                        var iconFileName = Path.GetFileName(icon.FilePath);
+                                        for (int j = 0; j < remainingIndices.Count; j++)
+                                        {
+                                            int idx = remainingIndices[j];
+                                            if (currentDesktopIcons[idx] != null && 
+                                                !string.IsNullOrEmpty(currentDesktopIcons[idx].FilePath) &&
+                                                string.Equals(Path.GetFileName(currentDesktopIcons[idx].FilePath), iconFileName, StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                usedIndices.Add(idx);
+                                                iconSavedIndices[icon] = idx;
+                                                remainingIndices.RemoveAt(j);
+                                                remainingNames.RemoveAt(j);
+                                                AppendLog($"SetIcons: Fixup filename match '{icon.Name}' at index {idx}\n");
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Now apply positions for all matched icons
+                        // Two-pass strategy to avoid position conflicts when icons swap:
+                        // Pass 1: Move all icons to temporary off-screen positions
+                        // Pass 2: Move all icons to their final positions
+                        // Also use WM_SETREDRAW to prevent Explorer from doing layout during the transition
+
+                        const uint WM_SETREDRAW = 0x000B;
+                        SendMessage(listView, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero);
+
+                        // Pass 1: Move all icons to temporary positions far from any real position
+                        foreach (var kvp in iconSavedIndices)
+                        {
+                            int index = kvp.Value;
+                            POINT tempPt = new POINT { x = -32000, y = -32000 };
+                            IntPtr localPt = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(POINT)));
+                            try
+                            {
+                                Marshal.StructureToPtr(tempPt, localPt, false);
+                                if (WriteProcessMemory(writeProcess, pPoint, localPt, Marshal.SizeOf(typeof(POINT)), out _))
+                                {
+                                    SendMessage(listView, LVM_SETITEMPOSITION32, (IntPtr)index, pPoint);
+                                }
+                            }
+                            finally { Marshal.FreeHGlobal(localPt); }
+                        }
+
+                        // Pass 2: Move all icons to their final positions
+                        foreach (var kvp in iconSavedIndices)
+                        {
+                            var icon = kvp.Key;
+                            int index = kvp.Value;
+
+                            if (icon.X == -9999 && icon.Y == -9999)
+                            {
+                                AppendLog($"Skipping position setting for {icon.Name} because it has no historical coordinates (-9999, -9999).\n");
+                                result.Repositioned++;
+                                continue;
+                            }
+
+                            POINT pt = new POINT { x = icon.X, y = icon.Y };
+                            IntPtr localPt = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(POINT)));
+                            try
+                            {
+                                Marshal.StructureToPtr(pt, localPt, false);
+                                if (WriteProcessMemory(writeProcess, pPoint, localPt, Marshal.SizeOf(typeof(POINT)), out _))
+                                {
+                                    SendMessage(listView, LVM_SETITEMPOSITION32, (IntPtr)index, pPoint);
+                                    result.Repositioned++;
+                                }
+                            }
+                            finally { Marshal.FreeHGlobal(localPt); }
+                        }
+
+                        SendMessage(listView, WM_SETREDRAW, (IntPtr)1, IntPtr.Zero);
 
                         // Calculate extra icons based on unused items on the desktop
                         int extraCount = 0;

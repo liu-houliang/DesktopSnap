@@ -413,7 +413,7 @@ namespace DesktopSnap
                             }
                         }
                     }
-                    catch { }
+                    catch (Exception ex) { Debug.WriteLine($"[DesktopSnap] Failed to scan directory for hidden files: {ex.Message}"); }
                 };
 
                 scanDir(publicDesktop);
@@ -479,7 +479,7 @@ namespace DesktopSnap
                                 Marshal.ReleaseComObject(shell);
                             }
                         }
-                        catch { }
+                        catch (Exception ex) { Debug.WriteLine($"[DesktopSnap] Failed to read shortcut properties for {hiddenFile}: {ex.Message}"); }
                     }
 
                     icons.Add(newIcon);
@@ -611,7 +611,7 @@ namespace DesktopSnap
                         var attrs = File.GetAttributes(icon.FilePath);
                         icon.IsHidden = (attrs & FileAttributes.Hidden) == FileAttributes.Hidden;
                     }
-                    catch { }
+                    catch (Exception ex) { Debug.WriteLine($"[DesktopSnap] Failed to read file attributes for {icon.FilePath}: {ex.Message}"); }
 
                     // Read shortcut properties if it's a shortcut
                     if (icon.FilePath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
@@ -774,7 +774,7 @@ namespace DesktopSnap
                                         var attrs = File.GetAttributes(targetPath);
                                         File.SetAttributes(targetPath, attrs | FileAttributes.Hidden);
                                     }
-                                    catch { }
+                                    catch (Exception ex) { Debug.WriteLine($"[DesktopSnap] Failed to set hidden attribute for {targetPath}: {ex.Message}"); }
                                 }
 
                                 result.Recreated++;

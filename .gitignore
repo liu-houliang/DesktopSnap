@@ -32,6 +32,7 @@ Desktop.ini
 ## [AI助手]
 .qoder/
 .agent/
+.claude/
 
 ## [项目本地及其生成文件]
 /Config/

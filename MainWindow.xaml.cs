@@ -127,7 +127,10 @@ namespace DesktopSnap
             TrayAutoStartToggle.IsChecked = settings.AutoStart;
             AutoSaveOnDisplayChangeToggle.IsOn = settings.AutoSaveOnDisplayChange;
             AutoUpdateToggle.IsOn = settings.EnableAutoUpdate;
-            
+            CloseToTrayToggle.IsOn = settings.CloseToTray;
+            SaveHotkeyDisplay.Text = settings.SaveHotkey;
+            SaveHotkeyHintRun.Text = $" ({settings.SaveHotkey})";
+
             // Sync internal settings with actual system auto-start status
             _ = SyncAutoStartWithSystemAsync();
 
@@ -213,11 +216,9 @@ namespace DesktopSnap
             await AboutDialog.ShowAsync();
         }
 
-        private void RegisterHotkeys(AppSettings settings, IntPtr hwnd)
+        private Action GetSaveHotkeyAction()
         {
-            if (_saveHotkeyId != -1) HotkeyManager.Unregister(hwnd, _saveHotkeyId);
-
-            _saveHotkeyId = HotkeyManager.Register(hwnd, settings.SaveHotkey, () => 
+            return () =>
             {
                 var icons = DesktopIconManager.GetIcons();
                 if (icons.Count > 0)
@@ -229,13 +230,25 @@ namespace DesktopSnap
                         CapturedDisplays = DisplayManager.GetDisplays()
                     };
                     LayoutManager.SaveLayout(newLayout);
-                    this.DispatcherQueue.TryEnqueue(() => 
+                    this.DispatcherQueue.TryEnqueue(() =>
                     {
                         RefreshLayoutsList();
                         ShowToast(I18n.Instance.L("Snapshot saved via hotkey."));
                     });
                 }
-            });
+            };
+        }
+        
+        private bool TryRegisterSaveHotkey(string hotkeyString, IntPtr hwnd)
+        {
+            if (_saveHotkeyId != -1) HotkeyManager.Unregister(hwnd, _saveHotkeyId);
+            _saveHotkeyId = HotkeyManager.Register(hwnd, hotkeyString, GetSaveHotkeyAction());
+            return _saveHotkeyId != -1;
+        }
+        
+        private void RegisterHotkeys(AppSettings settings, IntPtr hwnd)
+        {
+            TryRegisterSaveHotkey(settings.SaveHotkey, hwnd);
         }
         
         private void AppWindow_Closing(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
@@ -1632,15 +1645,23 @@ namespace DesktopSnap
         }
 
         [CommunityToolkit.Mvvm.Input.RelayCommand]
-        public void TrayRestore()
+        public async Task TrayRestore()
         {
             var layouts = LayoutManager.GetAllLayouts();
             var latest = layouts.FirstOrDefault(l => !l.Id.StartsWith("auto_") && l.Id != "temp_auto_save");
             if (latest != null && latest.Icons.Count > 0)
             {
-                var iconsToRestore = GetEffectiveIcons(latest);
-                Task.Run(() => DesktopIconManager.SetIcons(iconsToRestore));
-                ShowToast(I18n.Instance.L("Desktop restored."));
+                try
+                {
+                    var iconsToRestore = GetEffectiveIcons(latest);
+                    await Task.Run(() => DesktopIconManager.SetIcons(iconsToRestore));
+                    ShowToast(I18n.Instance.L("Desktop restored."));
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[DesktopSnap] TrayRestore failed: {ex}");
+                    ShowToast(I18n.Instance.RestoreFailed);
+                }
             }
             else
             {
@@ -1721,6 +1742,78 @@ namespace DesktopSnap
                 settings.AutoSaveOnDisplayChange = isOn;
                 SettingsManager.Save(settings);
             }
+        }
+
+        private void CloseToTrayToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (CloseToTrayToggle == null) return;
+            var settings = SettingsManager.Load();
+            bool isOn = CloseToTrayToggle.IsOn;
+
+            if (settings.CloseToTray != isOn)
+            {
+                settings.CloseToTray = isOn;
+                SettingsManager.Save(settings);
+            }
+        }
+
+        private void HotkeyEditBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var settings = SettingsManager.Load();
+            SaveHotkeyBox.Text = settings.SaveHotkey;
+            SaveHotkeyDisplay.Visibility = Visibility.Collapsed;
+            HotkeyEditBtn.Visibility = Visibility.Collapsed;
+            SaveHotkeyBox.Visibility = Visibility.Visible;
+            HotkeySaveBtn.Visibility = Visibility.Visible;
+            HotkeyCancelBtn.Visibility = Visibility.Visible;
+            SaveHotkeyBox.Focus(FocusState.Programmatic);
+            SaveHotkeyBox.SelectAll();
+        }
+
+        private void HotkeySaveBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var text = SaveHotkeyBox.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                ExitHotkeyEditMode();
+                return;
+            }
+
+            var settings = SettingsManager.Load();
+            if (settings.SaveHotkey != text)
+            {
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                if (TryRegisterSaveHotkey(text, hwnd))
+                {
+                    settings.SaveHotkey = text;
+                    SettingsManager.Save(settings);
+                    SaveHotkeyDisplay.Text = text;
+                    SaveHotkeyHintRun.Text = $" ({text})";
+                    ExitHotkeyEditMode();
+                }
+                else
+                {
+                    ShowToast(I18n.Instance.HotkeyConflict);
+                }
+            }
+            else
+            {
+                ExitHotkeyEditMode();
+            }
+        }
+
+        private void HotkeyCancelBtn_Click(object sender, RoutedEventArgs e)
+        {
+            ExitHotkeyEditMode();
+        }
+
+        private void ExitHotkeyEditMode()
+        {
+            SaveHotkeyBox.Visibility = Visibility.Collapsed;
+            HotkeySaveBtn.Visibility = Visibility.Collapsed;
+            HotkeyCancelBtn.Visibility = Visibility.Collapsed;
+            SaveHotkeyDisplay.Visibility = Visibility.Visible;
+            HotkeyEditBtn.Visibility = Visibility.Visible;
         }
 
         private void PerformAutoSnapshot(string reason)

@@ -10,7 +10,6 @@ namespace DesktopSnap
         public bool AutoStart { get; set; } = false;
         public bool CloseToTray { get; set; } = true;
         public string SaveHotkey { get; set; } = "Ctrl+Alt+S";
-        public string RestoreHotkey { get; set; } = "Ctrl+Alt+R";
         public bool IsFirstRun { get; set; } = true;
         public bool HasShownTrayNotification { get; set; } = false;
         public bool AutoSaveOnDisplayChange { get; set; } = false;

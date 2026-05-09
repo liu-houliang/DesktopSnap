@@ -108,7 +108,7 @@
                         <FontIcon Glyph="&#xE710;" FontSize="16" Foreground="White" />
                         <TextBlock>
                             <Run Text="{x:Bind Lang.NewSnapshot, Mode=OneWay}" FontWeight="SemiBold" />
-                            <Run Text=" (Ctrl+Alt+S)" FontWeight="Normal" FontSize="12" Foreground="#E0FFFFFF" />
+                            <Run x:Name="SaveHotkeyHintRun" Text="" FontWeight="Normal" FontSize="12" Foreground="#E0FFFFFF" />
                         </TextBlock>
                     </StackPanel>
                 </Button>
@@ -570,11 +570,76 @@
                         <TextBlock Text="{x:Bind Lang.AutoSaveOnDisplayChange, Mode=OneWay}" FontWeight="SemiBold" FontSize="14" TextWrapping="Wrap" />
                         <TextBlock Text="{x:Bind Lang.AutoSaveOnDisplayChangeDescription, Mode=OneWay}" Foreground="#88ffffff" FontSize="12" TextWrapping="Wrap" />
                     </StackPanel>
-                    <ToggleSwitch Grid.Column="2" x:Name="AutoSaveOnDisplayChangeToggle" 
+                    <ToggleSwitch Grid.Column="2" x:Name="AutoSaveOnDisplayChangeToggle"
                                   OffContent="" OnContent=""
                                   Toggled="AutoSaveOnDisplayChangeToggle_Toggled"
                                   VerticalAlignment="Center"
                                   MinWidth="50" />
+                </Grid>
+
+                <Rectangle Height="1" Fill="#11ffffff" HorizontalAlignment="Stretch" />
+
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE7F7;" FontSize="20" Foreground="#88ffffff" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                        <TextBlock Text="{x:Bind Lang.CloseToTray, Mode=OneWay}" FontWeight="SemiBold" FontSize="14" />
+                        <TextBlock Text="{x:Bind Lang.CloseToTrayDescription, Mode=OneWay}" Foreground="#88ffffff" FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="2" x:Name="CloseToTrayToggle"
+                                  OffContent="" OnContent=""
+                                  Toggled="CloseToTrayToggle_Toggled"
+                                  VerticalAlignment="Center"
+                                  MinWidth="50" />
+                </Grid>
+
+                <Rectangle Height="1" Fill="#11ffffff" HorizontalAlignment="Stretch" />
+
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE765;" FontSize="20" Foreground="#88ffffff" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                        <TextBlock Text="{x:Bind Lang.Hotkey, Mode=OneWay}" FontWeight="SemiBold" FontSize="14" />
+                        <TextBlock Text="{x:Bind Lang.HotkeyDescription, Mode=OneWay}" Foreground="#88ffffff" FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock x:Name="SaveHotkeyDisplay"
+                                   FontSize="13" VerticalAlignment="Center"
+                                   Text="Ctrl+Alt+S" />
+                        <TextBox x:Name="SaveHotkeyBox"
+                                 FontSize="13" MinWidth="100"
+                                 VerticalAlignment="Center"
+                                 IsSpellCheckEnabled="False"
+                                 Visibility="Collapsed" />
+                        <Button x:Name="HotkeyEditBtn"
+                                Style="{StaticResource SubtleButtonStyle}"
+                                Padding="6" MinWidth="30" MinHeight="30"
+                                Click="HotkeyEditBtn_Click">
+                            <FontIcon Glyph="&#xE70F;" FontSize="12" Foreground="#99ffffff" />
+                        </Button>
+                        <Button x:Name="HotkeySaveBtn"
+                                Style="{StaticResource SubtleButtonStyle}"
+                                Padding="6" MinWidth="30" MinHeight="30"
+                                Visibility="Collapsed"
+                                Click="HotkeySaveBtn_Click">
+                            <FontIcon Glyph="&#xE8FB;" FontSize="12" Foreground="#66ff66" />
+                        </Button>
+                        <Button x:Name="HotkeyCancelBtn"
+                                Style="{StaticResource SubtleButtonStyle}"
+                                Padding="6" MinWidth="30" MinHeight="30"
+                                Visibility="Collapsed"
+                                Click="HotkeyCancelBtn_Click">
+                            <FontIcon Glyph="&#xE711;" FontSize="12" Foreground="#ff6666" />
+                        </Button>
+                    </StackPanel>
                 </Grid>
 
                 <Rectangle x:Name="AutoUpdateSeparator" Height="1" Fill="#11ffffff" HorizontalAlignment="Stretch" />

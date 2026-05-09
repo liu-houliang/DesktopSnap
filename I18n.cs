@@ -58,6 +58,12 @@ namespace DesktopSnap
         public string Cancel => L("Cancel");
         public string Close => L("Close");
         public string RestoringWait => L("RestoringWait");
+        public string RestoreFailed => L("RestoreFailed");
+        public string CloseToTray => L("CloseToTray");
+        public string CloseToTrayDescription => L("CloseToTrayDescription");
+        public string Hotkey => L("Hotkey");
+        public string HotkeyDescription => L("HotkeyDescription");
+        public string HotkeyConflict => L("HotkeyConflict");
         public string All => L("All");
         public string BackupManagement => L("BackupManagement");
         public string BackupDescription => L("BackupDescription");
@@ -187,6 +193,12 @@ namespace DesktopSnap
                 { "Repositioned:", "已复位:" },
                 { "Shortcuts recreated:", "已重建快捷方式:" },
                 { "Cannot restore:", "无法恢复:" },
+                { "RestoreFailed", "恢复失败，请稍后重试。" },
+                { "CloseToTray", "关闭到托盘" },
+                { "CloseToTrayDescription", "关闭窗口时不退出程序，而是最小化到系统托盘" },
+                { "Hotkey", "快捷键" },
+                { "HotkeyDescription", "设置全局快捷键来保存当前桌面布局，格式如 Ctrl+Alt+S" },
+                { "HotkeyConflict", "快捷键已被其他应用占用，已恢复为原设置" },
                 { "Extra icons on desktop:", "桌面上的额外图标:" },
                 { "Rename", "重命名" },
                 { "ConfirmDeleteTitle", "确认删除" },
@@ -326,6 +338,12 @@ namespace DesktopSnap
                 { "Cancel", "Cancel" },
                 { "Close", "Close" },
                 { "RestoringWait", "Restoring desktop icon layout, please wait..." },
+                { "RestoreFailed", "Restore failed, please try again later." },
+                { "CloseToTray", "Close to Tray" },
+                { "CloseToTrayDescription", "Minimize to system tray instead of exiting when closing the window" },
+                { "Hotkey", "Hotkey" },
+                { "HotkeyDescription", "Set a global hotkey to save the current desktop layout, e.g. Ctrl+Alt+S" },
+                { "HotkeyConflict", "Hotkey already in use by another application, reverted to previous setting" },
                 { "All", "All" },
                 { "BackupManagement", "Data & Backup Management" },
                 { "BackupDescription", "Export all snapshots as a backup package or restore from one. You can also open the local folder to manage files manually." },

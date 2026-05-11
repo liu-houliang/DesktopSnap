@@ -110,11 +110,22 @@ namespace DesktopSnap
             }
         }
 
+        private static Version NormalizeVersion(Version v)
+        {
+            if (v == null) return new Version(0, 0, 0, 0);
+            return new Version(
+                v.Major >= 0 ? v.Major : 0,
+                v.Minor >= 0 ? v.Minor : 0,
+                v.Build >= 0 ? v.Build : 0,
+                v.Revision >= 0 ? v.Revision : 0
+            );
+        }
+
         private static bool IsVersionNewer(string current, string latest)
         {
             if (Version.TryParse(current, out var currentV) && Version.TryParse(latest, out var latestV))
             {
-                return latestV > currentV;
+                return NormalizeVersion(latestV) > NormalizeVersion(currentV);
             }
             return false;
         }

@@ -52,18 +52,20 @@ namespace DesktopSnap
         private int _selectedDisplayIndex = -1; // -1 for all displays
         
         private int _saveHotkeyId = -1;
+        private int _restoreHotkeyId = -1;
         private DispatcherTimer _statusTimer;
 
         public MainWindow(bool isSilentStart = false)
         {
             Instance = this;
+            this.InitializeComponent();
+
             try {
                 SetPreferredAppMode(2); // 2 = ForceDark
                 FlushMenuThemes();
             } catch { }
 
             SettingsManager.ApplySettings();
-            this.InitializeComponent();
 
             this.Title = I18n.Instance.AppTitle;
             ExtendsContentIntoTitleBar = true;
@@ -130,6 +132,7 @@ namespace DesktopSnap
             CloseToTrayToggle.IsOn = settings.CloseToTray;
             SaveHotkeyDisplay.Text = settings.SaveHotkey;
             SaveHotkeyHintRun.Text = $" ({settings.SaveHotkey})";
+            RestoreHotkeyDisplay.Text = settings.RestoreHotkey;
 
             // Sync internal settings with actual system auto-start status
             _ = SyncAutoStartWithSystemAsync();
@@ -239,18 +242,71 @@ namespace DesktopSnap
             };
         }
         
-        private bool TryRegisterSaveHotkey(string hotkeyString, IntPtr hwnd)
+        private bool TryRegisterSaveHotkey(string hotkeyString, IntPtr hwnd, string oldHotkey = null)
         {
             if (_saveHotkeyId != -1) HotkeyManager.Unregister(hwnd, _saveHotkeyId);
             _saveHotkeyId = HotkeyManager.Register(hwnd, hotkeyString, GetSaveHotkeyAction());
+            if (_saveHotkeyId == -1 && !string.IsNullOrEmpty(oldHotkey))
+            {
+                // Fallback to old hotkey if the new one fails
+                _saveHotkeyId = HotkeyManager.Register(hwnd, oldHotkey, GetSaveHotkeyAction());
+                return false;
+            }
             return _saveHotkeyId != -1;
         }
-        
+
+        private Action GetRestoreHotkeyAction()
+        {
+            return () =>
+            {
+                var settings = SettingsManager.Load();
+                var target = LayoutManager.GetRestoreTarget(settings.RestoreTargetId);
+                if (target != null && target.Icons.Count > 0)
+                {
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var iconsToRestore = target.Icons; // hotkey restore uses original coords (no scale dialog)
+                            DesktopIconManager.SetIcons(iconsToRestore);
+                            this.DispatcherQueue.TryEnqueue(() =>
+                            {
+                                ShowToast($"{I18n.Instance.L("Latest snapshot restored via hotkey.")} ({target.Name})");
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"[DesktopSnap] Restore hotkey failed: {ex}");
+                            this.DispatcherQueue.TryEnqueue(() => ShowToast(I18n.Instance.RestoreFailed));
+                        }
+                    });
+                }
+                else
+                {
+                    this.DispatcherQueue.TryEnqueue(() => ShowToast(I18n.Instance.L("No valid snapshot found.")));
+                }
+            };
+        }
+
+        private bool TryRegisterRestoreHotkey(string hotkeyString, IntPtr hwnd, string oldHotkey = null)
+        {
+            if (_restoreHotkeyId != -1) HotkeyManager.Unregister(hwnd, _restoreHotkeyId);
+            _restoreHotkeyId = HotkeyManager.Register(hwnd, hotkeyString, GetRestoreHotkeyAction());
+            if (_restoreHotkeyId == -1 && !string.IsNullOrEmpty(oldHotkey))
+            {
+                // Fallback to old hotkey if the new one fails
+                _restoreHotkeyId = HotkeyManager.Register(hwnd, oldHotkey, GetRestoreHotkeyAction());
+                return false;
+            }
+            return _restoreHotkeyId != -1;
+        }
+
         private void RegisterHotkeys(AppSettings settings, IntPtr hwnd)
         {
             TryRegisterSaveHotkey(settings.SaveHotkey, hwnd);
+            TryRegisterRestoreHotkey(settings.RestoreHotkey, hwnd);
         }
-        
+
         private void AppWindow_Closing(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
         {
             var settings = SettingsManager.Load();
@@ -1634,7 +1690,7 @@ namespace DesktopSnap
             {
                 var newLayout = new DesktopLayout
                 {
-                    Name = $"Tray Save {DateTime.Now:MM-dd HH:mm}",
+                    Name = $"Snapshot {DateTime.Now:yyyy-MM-dd HH:mm}",
                     Icons = icons,
                     CapturedDisplays = DisplayManager.GetDisplays()
                 };
@@ -1647,15 +1703,16 @@ namespace DesktopSnap
         [CommunityToolkit.Mvvm.Input.RelayCommand]
         public async Task TrayRestore()
         {
-            var layouts = LayoutManager.GetAllLayouts();
-            var latest = layouts.FirstOrDefault(l => !l.Id.StartsWith("auto_") && l.Id != "temp_auto_save");
-            if (latest != null && latest.Icons.Count > 0)
+            var settings = SettingsManager.Load();
+            var target = LayoutManager.GetRestoreTarget(settings.RestoreTargetId);
+            if (target != null && target.Icons.Count > 0)
             {
                 try
                 {
-                    var iconsToRestore = GetEffectiveIcons(latest);
+                    // Like hotkey, restore original coords directly without scale confirm
+                    var iconsToRestore = target.Icons;
                     await Task.Run(() => DesktopIconManager.SetIcons(iconsToRestore));
-                    ShowToast(I18n.Instance.L("Desktop restored."));
+                    ShowToast($"{I18n.Instance.L("Desktop restored.")} ({target.Name})");
                 }
                 catch (Exception ex)
                 {
@@ -1783,7 +1840,7 @@ namespace DesktopSnap
             if (settings.SaveHotkey != text)
             {
                 var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-                if (TryRegisterSaveHotkey(text, hwnd))
+                if (TryRegisterSaveHotkey(text, hwnd, settings.SaveHotkey))
                 {
                     settings.SaveHotkey = text;
                     SettingsManager.Save(settings);
@@ -1814,6 +1871,95 @@ namespace DesktopSnap
             HotkeyCancelBtn.Visibility = Visibility.Collapsed;
             SaveHotkeyDisplay.Visibility = Visibility.Visible;
             HotkeyEditBtn.Visibility = Visibility.Visible;
+        }
+
+        // --- Restore Hotkey Settings ---
+
+        private void RestoreHotkeyEditBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var settings = SettingsManager.Load();
+            RestoreHotkeyBox.Text = settings.RestoreHotkey;
+            RestoreHotkeyDisplay.Visibility = Visibility.Collapsed;
+            RestoreHotkeyEditBtn.Visibility = Visibility.Collapsed;
+            RestoreHotkeyBox.Visibility = Visibility.Visible;
+            RestoreHotkeySaveBtn.Visibility = Visibility.Visible;
+            RestoreHotkeyCancelBtn.Visibility = Visibility.Visible;
+            RestoreHotkeyBox.Focus(FocusState.Programmatic);
+            RestoreHotkeyBox.SelectAll();
+        }
+
+        private void RestoreHotkeySaveBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var text = RestoreHotkeyBox.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                ExitRestoreHotkeyEditMode();
+                return;
+            }
+
+            var settings = SettingsManager.Load();
+            if (settings.RestoreHotkey != text)
+            {
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                if (TryRegisterRestoreHotkey(text, hwnd, settings.RestoreHotkey))
+                {
+                    settings.RestoreHotkey = text;
+                    SettingsManager.Save(settings);
+                    RestoreHotkeyDisplay.Text = text;
+                    ExitRestoreHotkeyEditMode();
+                }
+                else
+                {
+                    ShowToast(I18n.Instance.HotkeyConflict);
+                }
+            }
+            else
+            {
+                ExitRestoreHotkeyEditMode();
+            }
+        }
+
+        private void RestoreHotkeyCancelBtn_Click(object sender, RoutedEventArgs e)
+        {
+            ExitRestoreHotkeyEditMode();
+        }
+
+        private void ExitRestoreHotkeyEditMode()
+        {
+            RestoreHotkeyBox.Visibility = Visibility.Collapsed;
+            RestoreHotkeySaveBtn.Visibility = Visibility.Collapsed;
+            RestoreHotkeyCancelBtn.Visibility = Visibility.Collapsed;
+            RestoreHotkeyDisplay.Visibility = Visibility.Visible;
+            RestoreHotkeyEditBtn.Visibility = Visibility.Visible;
+        }
+
+        // --- Restore Target Context Menu ---
+
+        private void SetRestoreTargetMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement element && element.DataContext is DesktopLayout layout && layout != null)
+            {
+                var settings = SettingsManager.Load();
+                // Toggle: if already the target, clear it; otherwise set it
+                if (settings.RestoreTargetId == layout.Id)
+                {
+                    settings.RestoreTargetId = "";
+                }
+                else
+                {
+                    settings.RestoreTargetId = layout.Id;
+                }
+                SettingsManager.Save(settings);
+                
+                // Directly update the UI without reloading all layouts from disk
+                if (LayoutsListView.ItemsSource is System.Collections.Generic.IEnumerable<DesktopLayout> layouts)
+                {
+                    foreach (var item in layouts)
+                    {
+                        item.IsRestoreTarget = (item.Id == settings.RestoreTargetId);
+                    }
+                }
+            }
         }
 
         private void PerformAutoSnapshot(string reason)
@@ -1854,6 +2000,11 @@ namespace DesktopSnap
                     HotkeyManager.Unregister(hwnd, _saveHotkeyId);
                     _saveHotkeyId = -1;
                 }
+                if (_restoreHotkeyId != -1)
+                {
+                    HotkeyManager.Unregister(hwnd, _restoreHotkeyId);
+                    _restoreHotkeyId = -1;
+                }
 
                 if (_oldWndProc != IntPtr.Zero)
                 {
@@ -1876,6 +2027,7 @@ namespace DesktopSnap
                 Debug.WriteLine($"Cleanup error: {ex.Message}");
             }
         }
+
         public void ShowAndRestore()
         {
             this.DispatcherQueue.TryEnqueue(() =>

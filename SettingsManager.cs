@@ -10,6 +10,10 @@ namespace DesktopSnap
         public bool AutoStart { get; set; } = false;
         public bool CloseToTray { get; set; } = true;
         public string SaveHotkey { get; set; } = "Ctrl+Alt+S";
+        public string RestoreHotkey { get; set; } = "Ctrl+Alt+R";
+        // Empty string means "auto" (most recent user snapshot).
+        // A non-empty GUID means the user has designated a specific layout as the restore target.
+        public string RestoreTargetId { get; set; } = "";
         public bool IsFirstRun { get; set; } = true;
         public bool HasShownTrayNotification { get; set; } = false;
         public bool AutoSaveOnDisplayChange { get; set; } = false;
@@ -19,6 +23,8 @@ namespace DesktopSnap
     public static class SettingsManager
     {
         private static string _settingsFile;
+        private static AppSettings _cachedSettings;
+        private static readonly object _lock = new object();
 
         static SettingsManager()
         {
@@ -43,22 +49,49 @@ namespace DesktopSnap
 
         public static AppSettings Load()
         {
-            if (File.Exists(_settingsFile))
+            lock (_lock)
             {
-                try { return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_settingsFile)) ?? new AppSettings(); }
-                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"SettingsManager Error: {ex}"); }
+                if (_cachedSettings != null)
+                {
+                    return CloneSettings(_cachedSettings);
+                }
+
+                if (File.Exists(_settingsFile))
+                {
+                    try 
+                    { 
+                        _cachedSettings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_settingsFile)) ?? new AppSettings(); 
+                        return CloneSettings(_cachedSettings);
+                    }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"SettingsManager Error: {ex}"); }
+                }
+                _cachedSettings = new AppSettings();
+                return CloneSettings(_cachedSettings);
             }
-            return new AppSettings();
         }
 
         public static void Save(AppSettings settings)
         {
-            var dir = Path.GetDirectoryName(_settingsFile);
-            if (!Directory.Exists(dir))
+            lock (_lock)
             {
-                Directory.CreateDirectory(dir);
+                var dir = Path.GetDirectoryName(_settingsFile);
+                if (!Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                }
+                
+                // Update cache
+                _cachedSettings = CloneSettings(settings);
+                
+                File.WriteAllText(_settingsFile, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
             }
-            File.WriteAllText(_settingsFile, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+        }
+
+        private static AppSettings CloneSettings(AppSettings source)
+        {
+            // Simple clone via JSON to prevent references leaking out and being modified without Save()
+            var json = JsonSerializer.Serialize(source);
+            return JsonSerializer.Deserialize<AppSettings>(json);
         }
 
         public static void ApplySettings()

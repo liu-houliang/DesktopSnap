@@ -98,7 +98,13 @@ namespace DesktopSnap
         public string Unpin => L("Unpin");
         public string MoveUp => L("MoveUp");
         public string MoveDown => L("MoveDown");
-        
+        public string RestoreHotkey => L("RestoreHotkey");
+        public string RestoreHotkeyDescription => L("RestoreHotkeyDescription");
+        public string SetAsRestoreTarget => L("SetAsRestoreTarget");
+        public string ClearRestoreTarget => L("ClearRestoreTarget");
+        public string RestoreTargetBadge => L("RestoreTargetBadge");
+        public string RestoreTargetTooltip => L("RestoreTargetTooltip");
+
         // New strings for tray and settings
         public string AutoStart => L("AutoStart");
         public string AutoStartDescription => L("AutoStartDescription");
@@ -298,7 +304,13 @@ namespace DesktopSnap
                 { "PinToTop", "置顶" },
                 { "Unpin", "取消置顶" },
                 { "MoveUp", "上移" },
-                { "MoveDown", "下移" }
+                { "MoveDown", "下移" },
+                { "RestoreHotkey", "恢复快捷键" },
+                { "RestoreHotkeyDescription", "设置全局快捷键一键恢复快照，默认恢复最近快照，也可右键指定目标" },
+                { "SetAsRestoreTarget", "设为快捷键恢复目标" },
+                { "ClearRestoreTarget", "取消恢复目标" },
+                { "RestoreTargetBadge", "🎯" },
+                { "RestoreTargetTooltip", "此快照已被指定为快捷键恢复目标" }
             } },
             { "en", new Dictionary<string, string> {
                 { "AppTitle", "Desktop Snap" },
@@ -430,7 +442,13 @@ namespace DesktopSnap
                 { "PinToTop", "Pin to Top" },
                 { "Unpin", "Unpin" },
                 { "MoveUp", "Move Up" },
-                { "MoveDown", "Move Down" }
+                { "MoveDown", "Move Down" },
+                { "RestoreHotkey", "Restore Hotkey" },
+                { "RestoreHotkeyDescription", "Global hotkey to instantly restore a snapshot. Restores the latest by default, or a designated target (right-click a snapshot)" },
+                { "SetAsRestoreTarget", "Set as Restore Target" },
+                { "ClearRestoreTarget", "Clear Restore Target" },
+                { "RestoreTargetBadge", "🎯" },
+                { "RestoreTargetTooltip", "This snapshot is designated as the hotkey restore target" }
             } }
         };
 

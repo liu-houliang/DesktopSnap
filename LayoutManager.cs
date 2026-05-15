@@ -9,7 +9,7 @@ using System.Diagnostics;
 
 namespace DesktopSnap
 {
-    public class DesktopLayout
+    public class DesktopLayout : System.ComponentModel.INotifyPropertyChanged
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
         public string Name { get; set; }
@@ -19,6 +19,24 @@ namespace DesktopSnap
         public List<IconInfo> Icons { get; set; } = new List<IconInfo>();
         public List<DisplayInfo> CapturedDisplays { get; set; } = new List<DisplayInfo>();
         public string SavedTime => SavedAt.ToString("yyyy-MM-dd HH:mm:ss");
+
+        public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
+
+        private bool _isRestoreTarget = false;
+        // Runtime-only: set by LayoutManager.GetAllLayouts(), never serialized.
+        [System.Text.Json.Serialization.JsonIgnore]
+        public bool IsRestoreTarget 
+        { 
+            get => _isRestoreTarget; 
+            set 
+            { 
+                if (_isRestoreTarget != value) 
+                { 
+                    _isRestoreTarget = value; 
+                    PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(IsRestoreTarget))); 
+                } 
+            } 
+        }
     }
 
     public enum ImportStatus
@@ -63,8 +81,30 @@ namespace DesktopSnap
 
         public static string GetLayoutsDirectory() => _layoutsDirectory;
 
+        /// <summary>
+        /// Returns the layout that should be restored by the hotkey.
+        /// Priority: user-designated target (RestoreTargetId) > most recent user snapshot (non-auto).
+        /// Falls back to null if no eligible snapshot exists.
+        /// </summary>
+        public static DesktopLayout GetRestoreTarget(string restoreTargetId)
+        {
+            var allLayouts = GetAllLayouts(); // already sorted: pinned first, then by time desc
+
+            // 1. If user has designated a specific target, try to use it
+            if (!string.IsNullOrEmpty(restoreTargetId))
+            {
+                var designated = allLayouts.FirstOrDefault(l => l.Id == restoreTargetId);
+                if (designated != null) return designated;
+                // Designated target was deleted - fall through to auto
+            }
+
+            // 2. Auto: most recent non-auto user snapshot
+            return allLayouts.FirstOrDefault(l => !l.Id.StartsWith("auto_") && l.Id != "temp_auto_save");
+        }
+
         public static List<DesktopLayout> GetAllLayouts()
         {
+            var restoreTargetId = SettingsManager.Load().RestoreTargetId;
             var layouts = new List<DesktopLayout>();
             if (!Directory.Exists(_layoutsDirectory)) return layouts;
 
@@ -89,6 +129,9 @@ namespace DesktopSnap
                         {
                             layout.Name = I18n.Instance.AutoTempSave + " (" + layout.SavedAt.ToString("MM-dd HH:mm") + ")";
                         }
+
+                        // Mark the designated restore target
+                        layout.IsRestoreTarget = !string.IsNullOrEmpty(restoreTargetId) && layout.Id == restoreTargetId;
 
                         layouts.Add(layout);
                     }

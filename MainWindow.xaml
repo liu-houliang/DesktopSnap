@@ -125,9 +125,16 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Spacing="4">
-                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" Foreground="White" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" Foreground="White" />
+                                        <!-- 🎯 Restore target badge -->
+                                        <TextBlock Text="🎯" FontSize="12" VerticalAlignment="Center"
+                                                   Visibility="{Binding IsRestoreTarget, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                   ToolTipService.ToolTip="{x:Bind local:I18n.Instance.RestoreTargetTooltip, Mode=OneWay}" />
+                                    </StackPanel>
                                     <TextBlock Text="{Binding SavedTime}" FontSize="12" Foreground="#99ffffff" />
                                 </StackPanel>
                                 <Button Grid.Column="1" Click="PinMenuItem_Click" 
@@ -138,7 +145,6 @@
                                     <FontIcon Glyph="&#xE840;" FontSize="12" 
                                               Foreground="{Binding IsPinned, Converter={StaticResource PinnedColorConverter}}" />
                                 </Button>
-
                                 <Grid.ContextFlyout>
                                     <MenuFlyout>
                                         <MenuFlyoutItem Text="{x:Bind local:I18n.Instance.PinToTop, Mode=OneWay}" Click="PinMenuItem_Click" 
@@ -164,6 +170,21 @@
                                                         Visibility="{Binding IsPinned, Converter={StaticResource BoolToVisibilityConverter}}">
                                             <MenuFlyoutItem.Icon>
                                                 <FontIcon Glyph="&#xE1FD;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="{x:Bind local:I18n.Instance.SetAsRestoreTarget, Mode=OneWay}" 
+                                                        Click="SetRestoreTargetMenuItem_Click"
+                                                        Visibility="{Binding IsRestoreTarget, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE7C1;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="{x:Bind local:I18n.Instance.ClearRestoreTarget, Mode=OneWay}" 
+                                                        Click="SetRestoreTargetMenuItem_Click"
+                                                        Visibility="{Binding IsRestoreTarget, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xEDAD;" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                     </MenuFlyout>
@@ -518,7 +539,8 @@
                        DefaultButton="Close"
                        CornerRadius="12"
                        RequestedTheme="Dark">
-            <StackPanel Spacing="24" Margin="0,16,0,0" Width="440">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,-24,0" Padding="0,0,24,0">
+                <StackPanel Spacing="24" Margin="0,16,0,0" Width="440">
                 <Grid ColumnSpacing="16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -642,6 +664,52 @@
                     </StackPanel>
                 </Grid>
 
+                <Rectangle Height="1" Fill="#11ffffff" HorizontalAlignment="Stretch" />
+
+                <!-- Restore Hotkey Setting -->
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE777;" FontSize="20" Foreground="#88ffffff" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                        <TextBlock Text="{x:Bind Lang.RestoreHotkey, Mode=OneWay}" FontWeight="SemiBold" FontSize="14" />
+                        <TextBlock Text="{x:Bind Lang.RestoreHotkeyDescription, Mode=OneWay}" Foreground="#88ffffff" FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock x:Name="RestoreHotkeyDisplay"
+                                   FontSize="13" VerticalAlignment="Center"
+                                   Text="Ctrl+Alt+R" />
+                        <TextBox x:Name="RestoreHotkeyBox"
+                                 FontSize="13" MinWidth="100"
+                                 VerticalAlignment="Center"
+                                 IsSpellCheckEnabled="False"
+                                 Visibility="Collapsed" />
+                        <Button x:Name="RestoreHotkeyEditBtn"
+                                Style="{StaticResource SubtleButtonStyle}"
+                                Padding="6" MinWidth="30" MinHeight="30"
+                                Click="RestoreHotkeyEditBtn_Click">
+                            <FontIcon Glyph="&#xE70F;" FontSize="12" Foreground="#99ffffff" />
+                        </Button>
+                        <Button x:Name="RestoreHotkeySaveBtn"
+                                Style="{StaticResource SubtleButtonStyle}"
+                                Padding="6" MinWidth="30" MinHeight="30"
+                                Visibility="Collapsed"
+                                Click="RestoreHotkeySaveBtn_Click">
+                            <FontIcon Glyph="&#xE8FB;" FontSize="12" Foreground="#66ff66" />
+                        </Button>
+                        <Button x:Name="RestoreHotkeyCancelBtn"
+                                Style="{StaticResource SubtleButtonStyle}"
+                                Padding="6" MinWidth="30" MinHeight="30"
+                                Visibility="Collapsed"
+                                Click="RestoreHotkeyCancelBtn_Click">
+                            <FontIcon Glyph="&#xE711;" FontSize="12" Foreground="#ff6666" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
                 <Rectangle x:Name="AutoUpdateSeparator" Height="1" Fill="#11ffffff" HorizontalAlignment="Stretch" />
 
                 <Grid x:Name="AutoUpdateSettingRow" ColumnSpacing="16">
@@ -709,6 +777,7 @@
                     </Grid>
                 </StackPanel>
             </StackPanel>
+            </ScrollViewer>
         </ContentDialog>
 
     </Grid>

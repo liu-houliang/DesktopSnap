@@ -52,6 +52,16 @@ namespace DesktopSnap
     {
         private static readonly object _autoSaveLock = new object();
         private static string _layoutsDirectory;
+        private static List<DesktopLayout> _cachedLayouts = null;
+        private static readonly object _cacheLock = new object();
+
+        public static void InvalidateCache()
+        {
+            lock (_cacheLock)
+            {
+                _cachedLayouts = null;
+            }
+        }
 
         static LayoutManager()
         {
@@ -104,45 +114,56 @@ namespace DesktopSnap
 
         public static List<DesktopLayout> GetAllLayouts()
         {
-            var restoreTargetId = SettingsManager.Load().RestoreTargetId;
-            var layouts = new List<DesktopLayout>();
-            if (!Directory.Exists(_layoutsDirectory)) return layouts;
-
-            var files = Directory.GetFiles(_layoutsDirectory, "*.json");
-            foreach (var file in files)
+            lock (_cacheLock)
             {
-                try
+                if (_cachedLayouts != null)
                 {
-                    string json = File.ReadAllText(file);
-                    var layout = JsonSerializer.Deserialize<DesktopLayout>(json);
-                    if (layout != null)
-                    {
-                        foreach (var icon in layout.Icons)
-                        {
-                            icon.FilePath = PathService.Denormalize(icon.FilePath);
-                            icon.ShortcutTarget = PathService.Denormalize(icon.ShortcutTarget);
-                            icon.ShortcutIconLocation = PathService.Denormalize(icon.ShortcutIconLocation);
-                            icon.ShortcutWorkingDir = PathService.Denormalize(icon.ShortcutWorkingDir);
-                        }
-
-                        if (layout.Id.StartsWith("auto_") || layout.Id == "temp_auto_save")
-                        {
-                            layout.Name = I18n.Instance.AutoTempSave + " (" + layout.SavedAt.ToString("MM-dd HH:mm") + ")";
-                        }
-
-                        // Mark the designated restore target
-                        layout.IsRestoreTarget = !string.IsNullOrEmpty(restoreTargetId) && layout.Id == restoreTargetId;
-
-                        layouts.Add(layout);
-                    }
+                    return _cachedLayouts;
                 }
-                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"LayoutManager Error: {ex}"); }
+
+                var restoreTargetId = SettingsManager.Load().RestoreTargetId;
+                var layouts = new List<DesktopLayout>();
+                if (!Directory.Exists(_layoutsDirectory)) return layouts;
+
+                var files = Directory.GetFiles(_layoutsDirectory, "*.json");
+                foreach (var file in files)
+                {
+                    try
+                    {
+                        string json = File.ReadAllText(file);
+                        var layout = JsonSerializer.Deserialize<DesktopLayout>(json);
+                        if (layout != null)
+                        {
+                            foreach (var icon in layout.Icons)
+                            {
+                                icon.FilePath = PathService.Denormalize(icon.FilePath);
+                                icon.ShortcutTarget = PathService.Denormalize(icon.ShortcutTarget);
+                                icon.ShortcutIconLocation = PathService.Denormalize(icon.ShortcutIconLocation);
+                                icon.ShortcutWorkingDir = PathService.Denormalize(icon.ShortcutWorkingDir);
+                            }
+
+                            if (layout.Id.StartsWith("auto_") || layout.Id == "temp_auto_save")
+                            {
+                                layout.Name = I18n.Instance.AutoTempSave + " (" + layout.SavedAt.ToString("MM-dd HH:mm") + ")";
+                            }
+
+                            // Mark the designated restore target
+                            layout.IsRestoreTarget = !string.IsNullOrEmpty(restoreTargetId) && layout.Id == restoreTargetId;
+
+                            layouts.Add(layout);
+                        }
+                    }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"LayoutManager Error: {ex}"); }
+                }
+
+                _cachedLayouts = layouts
+                    .OrderByDescending(l => l.IsPinned)
+                    .ThenByDescending(l => l.PinnedAt ?? DateTime.MinValue)
+                    .ThenByDescending(l => l.SavedAt)
+                    .ToList();
+
+                return _cachedLayouts;
             }
-            return layouts
-                .OrderByDescending(l => l.IsPinned)
-                .ThenByDescending(l => l.PinnedAt ?? DateTime.MinValue)
-                .ThenByDescending(l => l.SavedAt)
-                .ToList();
         }
 
         public static void SaveLayout(DesktopLayout layout, bool updateTimestamp = true)
@@ -184,6 +205,12 @@ namespace DesktopSnap
 
             string json = JsonSerializer.Serialize(portableLayout, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(path, json);
+
+            // Invalidate cache if saving to the main directory
+            if (path.StartsWith(_layoutsDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                InvalidateCache();
+            }
         }
 
         public static (ImportStatus status, DesktopLayout layout) ImportLayout(string sourcePath)
@@ -291,6 +318,7 @@ namespace DesktopSnap
             if (File.Exists(file))
             {
                 File.Delete(file);
+                InvalidateCache();
             }
         }
 
@@ -303,6 +331,7 @@ namespace DesktopSnap
                 {
                     try { File.Delete(file); } catch (Exception ex) { Debug.WriteLine($"Failed to delete {file}: {ex.Message}"); }
                 }
+                InvalidateCache();
             }
         }
 

@@ -105,6 +105,7 @@ namespace DesktopSnap
             {
                 I18n.Instance.CurrentLanguage = settings.Language;
             }
+            LayoutManager.InvalidateCache();
         }
     }
 }

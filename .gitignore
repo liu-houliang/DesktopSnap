@@ -36,6 +36,7 @@ Desktop.ini
 
 ## [项目本地及其生成文件]
 /Config/
+/dist/
 /x64/
 /x86/
 /Release/
@@ -43,3 +44,4 @@ Desktop.ini
 *.msi
 *.msix
 *.appx
+*.zip

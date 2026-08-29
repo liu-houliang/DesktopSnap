@@ -864,7 +864,18 @@ namespace DesktopSnap
             PreviewCanvas.Clip = null; // Clear any focus clip
             DesktopJumpsPanel.Children.Clear();
             
-            var displays = DisplayManager.GetDisplays();
+            var currentDisplays = DisplayManager.GetDisplays();
+            bool isOriginalMode = PreviewModePanel.Visibility == Visibility.Visible && 
+                                 (PreviewModeCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "original";
+
+            // Choose display source based on mode
+            var displays = (isOriginalMode && layout.CapturedDisplays != null && layout.CapturedDisplays.Count > 0)
+                ? layout.CapturedDisplays
+                : (PreviewModePanel.Visibility == Visibility.Visible && (PreviewModeCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "scale"
+                    ? currentDisplays
+                    : (layout.CapturedDisplays != null && layout.CapturedDisplays.Count > 0 ? layout.CapturedDisplays : currentDisplays));
+
+            if (displays == null || displays.Count == 0) displays = currentDisplays;
             
             // Show jump panel only if there are multiple displays
             DesktopJumpsPanel.Visibility = (displays.Count > 1) ? Visibility.Visible : Visibility.Collapsed;
@@ -897,37 +908,49 @@ namespace DesktopSnap
 
             double uiScale = (this.Content?.XamlRoot?.RasterizationScale) ?? 1.0;
 
-            double minX, minY, maxX, maxY;
+            int totalMinX = displays.Count > 0 ? displays.Min(d => d.Left) : 0;
+            int totalMinY = displays.Count > 0 ? displays.Min(d => d.Top) : 0;
+            int totalMaxX = displays.Count > 0 ? displays.Max(d => d.Right) : 0;
+            int totalMaxY = displays.Count > 0 ? displays.Max(d => d.Bottom) : 0;
+
+            double viewOffsetX = 0;
+            double viewOffsetY = 0;
+            double viewWidth = 0;
+            double viewHeight = 0;
 
             if (_selectedDisplayIndex >= 0 && _selectedDisplayIndex < displays.Count)
             {
                 var target = displays[_selectedDisplayIndex];
-                minX = target.Left - 30;
-                minY = target.Top - 30;
-                maxX = target.Right + 30;
-                maxY = target.Bottom + 30; // Extra room for labels at bottom
+                viewOffsetX = target.Left - totalMinX;
+                viewOffsetY = target.Top - totalMinY;
+                viewWidth = target.Width;
+                viewHeight = target.Height;
             }
             else if (displays.Count > 0)
             {
-                minX = displays.Min(d => d.Left) - 30;
-                minY = displays.Min(d => d.Top) - 30;
-                maxX = displays.Max(d => d.Right) + 30;
-                maxY = displays.Max(d => d.Bottom) + 30;
+                viewOffsetX = 0;
+                viewOffsetY = 0;
+                viewWidth = totalMaxX - totalMinX;
+                viewHeight = totalMaxY - totalMinY;
             }
             else
             {
-                minX = (iconsToDraw.Count > 0 ? iconsToDraw.Min(i => i.X) : 0) - 140;
-                minY = (iconsToDraw.Count > 0 ? iconsToDraw.Min(i => i.Y) : 0) - 140;
-                maxX = (iconsToDraw.Count > 0 ? iconsToDraw.Max(i => i.X) : 0) + 180;
-                maxY = (iconsToDraw.Count > 0 ? iconsToDraw.Max(i => i.Y) : 0) + 240;
+                viewOffsetX = 0;
+                viewOffsetY = 0;
+                viewWidth = (iconsToDraw.Count > 0 ? iconsToDraw.Max(i => i.X) : 1920) + 100;
+                viewHeight = (iconsToDraw.Count > 0 ? iconsToDraw.Max(i => i.Y) : 1080) + 100;
             }
 
-            PreviewCanvas.Width = (maxX - minX) / uiScale;
-            PreviewCanvas.Height = (maxY - minY) / uiScale;
+            const double PADDING = 30.0;
+            PreviewCanvas.Width = (viewWidth + PADDING * 2) / uiScale;
+            PreviewCanvas.Height = (viewHeight + PADDING * 2) / uiScale;
 
             int displayIdx = 1;
             foreach (var display in displays)
             {
+                double screenLeftInView = (display.Left - totalMinX) - viewOffsetX;
+                double screenTopInView = (display.Top - totalMinY) - viewOffsetY;
+
                 var screenRect = new Rectangle
                 {
                     Width = display.Width / uiScale,
@@ -936,8 +959,8 @@ namespace DesktopSnap
                     Stroke = new SolidColorBrush(Color.FromArgb(100, 100, 100, 150)), // Subtle blue-ish border
                     StrokeThickness = 2
                 };
-                Canvas.SetLeft(screenRect, (display.Left - minX) / uiScale);
-                Canvas.SetTop(screenRect, (display.Top - minY) / uiScale);
+                Canvas.SetLeft(screenRect, (screenLeftInView + PADDING) / uiScale);
+                Canvas.SetTop(screenRect, (screenTopInView + PADDING) / uiScale);
                 Canvas.SetZIndex(screenRect, -2); // Ensure screens are at the very back
 
                 var screenText = new TextBlock
@@ -949,8 +972,8 @@ namespace DesktopSnap
                     IsHitTestVisible = false
                 };
                 // Position text at bottom-right of each screen with some margin
-                Canvas.SetLeft(screenText, (display.Left - minX + display.Width - 450) / uiScale);
-                Canvas.SetTop(screenText, (display.Top - minY + display.Height - 180) / uiScale);
+                Canvas.SetLeft(screenText, (screenLeftInView + PADDING + display.Width - 450) / uiScale);
+                Canvas.SetTop(screenText, (screenTopInView + PADDING + display.Height - 180) / uiScale);
                 Canvas.SetZIndex(screenText, -1); // Keep below icons but above screen background
 
                 PreviewCanvas.Children.Add(screenRect);
@@ -978,21 +1001,35 @@ namespace DesktopSnap
 
             foreach (var icon in iconsToDraw)
             {
+                double iconLeftInView = icon.X - viewOffsetX;
+                double iconTopInView = icon.Y - viewOffsetY;
+
+                if (_selectedDisplayIndex >= 0)
+                {
+                    // If focusing on a single display, filter out icons outside that display's viewport
+                    if (iconLeftInView < -50 || iconLeftInView > viewWidth + 50 ||
+                        iconTopInView < -50 || iconTopInView > viewHeight + 50)
+                    {
+                        continue;
+                    }
+                }
+
                 bool isShortcut = !string.IsNullOrEmpty(icon.FilePath) &&
                                   icon.FilePath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase);
                 bool isFolderLike = IsFolderIcon(icon);
 
-                bool isOriginalMode = PreviewModePanel.Visibility == Visibility.Visible && 
-                                     (PreviewModeCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "original";
-
                 double iconScale = 1.0;
-                if (isOriginalMode && layout.CapturedDisplays != null)
+                if (isOriginalMode && layout.CapturedDisplays != null && layout.CapturedDisplays.Count > 0)
                 {
                     // In Original mode, we want to show the icon at the size it was captured
                     // Current logical size in WinUI is 1.0. To show 'capDpi' size physically,
                     // we need logical = capDpi / currentDpi.
                     uint capDpi = 96;
-                    var capDisp = layout.CapturedDisplays.FirstOrDefault(d => icon.X >= d.Left && icon.X < d.Right && icon.Y >= d.Top && icon.Y < d.Bottom);
+                    int capMinX = layout.CapturedDisplays.Min(d => d.Left);
+                    int capMinY = layout.CapturedDisplays.Min(d => d.Top);
+                    var capDisp = layout.CapturedDisplays.FirstOrDefault(d => 
+                        icon.X >= (d.Left - capMinX) && icon.X < (d.Right - capMinX) && 
+                        icon.Y >= (d.Top - capMinY) && icon.Y < (d.Bottom - capMinY));
                     if (capDisp != null) capDpi = capDisp.Dpi;
                     else if (layout.CapturedDisplays.Count > 0) capDpi = layout.CapturedDisplays[0].Dpi;
                     
@@ -1123,8 +1160,8 @@ namespace DesktopSnap
                 ToolTipService.SetToolTip(container, icon.Name);
                 
                 // Calculate position: We want the icon to be centered over (icon.X, icon.Y) area
-                double logicalCenterX = (icon.X - minX + 14) / uiScale;
-                double logicalTopY = (icon.Y - minY) / uiScale;
+                double logicalCenterX = (iconLeftInView + PADDING + 14) / uiScale;
+                double logicalTopY = (iconTopInView + PADDING) / uiScale;
 
                 Canvas.SetLeft(container, logicalCenterX - (30 * iconScale));
                 Canvas.SetTop(container, logicalTopY);
@@ -1190,13 +1227,22 @@ namespace DesktopSnap
                 return layout.Icons;
             }
 
+            int oldMinX = layout.CapturedDisplays.Min(d => d.Left);
+            int oldMinY = layout.CapturedDisplays.Min(d => d.Top);
+            int newMinX = currentDisplays.Min(d => d.Left);
+            int newMinY = currentDisplays.Min(d => d.Top);
+
             return layout.Icons.Select(icon => {
                 // 1. Find which monitor this icon was on
                 int monIdx = -1;
                 for (int j = 0; j < layout.CapturedDisplays.Count; j++)
                 {
                     var d = layout.CapturedDisplays[j];
-                    if (icon.X >= d.Left && icon.X < d.Right && icon.Y >= d.Top && icon.Y < d.Bottom)
+                    int clientLeft = d.Left - oldMinX;
+                    int clientTop = d.Top - oldMinY;
+                    int clientRight = d.Right - oldMinX;
+                    int clientBottom = d.Bottom - oldMinY;
+                    if (icon.X >= clientLeft && icon.X < clientRight && icon.Y >= clientTop && icon.Y < clientBottom)
                     {
                         monIdx = j;
                         break;
@@ -1220,12 +1266,17 @@ namespace DesktopSnap
                     uint oldDpi = oldMon.Dpi > 0 ? oldMon.Dpi : 96;
                     uint newDpi = newMon.Dpi > 0 ? newMon.Dpi : 96;
 
+                    int oldClientLeft = oldMon.Left - oldMinX;
+                    int oldClientTop = oldMon.Top - oldMinY;
+                    int newClientLeft = newMon.Left - newMinX;
+                    int newClientTop = newMon.Top - newMinY;
+
                     // Calculate relative logical position within the monitor
-                    // (icon.X - oldMon.Left) is physical pixels from left edge
+                    // (icon.X - oldClientLeft) is physical pixels from left edge
                     // Divide by (oldDpi/96.0) to get logical pixels
                     double oldScale = oldDpi / 96.0;
-                    double relLogX = (double)(icon.X - oldMon.Left) / oldScale;
-                    double relLogY = (double)(icon.Y - oldMon.Top) / oldScale;
+                    double relLogX = (double)(icon.X - oldClientLeft) / oldScale;
+                    double relLogY = (double)(icon.Y - oldClientTop) / oldScale;
 
                     // If physical resolution is the same, we simply stay at the same logical position
                     // This ensures icons stay in the same "grid cells" if only DPI changed.
@@ -1236,8 +1287,9 @@ namespace DesktopSnap
                             Name = icon.Name, FilePath = icon.FilePath,
                             ShortcutTarget = icon.ShortcutTarget, ShortcutArgs = icon.ShortcutArgs,
                             ShortcutIconLocation = icon.ShortcutIconLocation, ShortcutWorkingDir = icon.ShortcutWorkingDir,
-                            X = newMon.Left + (int)(relLogX * newScale),
-                            Y = newMon.Top + (int)(relLogY * newScale)
+                            IsHidden = icon.IsHidden,
+                            X = newClientLeft + (int)(relLogX * newScale),
+                            Y = newClientTop + (int)(relLogY * newScale)
                         };
                     }
                     else
@@ -1256,8 +1308,9 @@ namespace DesktopSnap
                             Name = icon.Name, FilePath = icon.FilePath,
                             ShortcutTarget = icon.ShortcutTarget, ShortcutArgs = icon.ShortcutArgs,
                             ShortcutIconLocation = icon.ShortcutIconLocation, ShortcutWorkingDir = icon.ShortcutWorkingDir,
-                            X = newMon.Left + (int)(ratioX * newLogW * newScale),
-                            Y = newMon.Top + (int)(ratioY * newLogH * newScale)
+                            IsHidden = icon.IsHidden,
+                            X = newClientLeft + (int)(ratioX * newLogW * newScale),
+                            Y = newClientTop + (int)(ratioY * newLogH * newScale)
                         };
                     }
                 }
